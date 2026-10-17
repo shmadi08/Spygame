@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#100d0b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>جاسوس</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,560;9..144,700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/mqtt@5.10.3/dist/mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #100d0b;
+    --bg2: #1a1512;
+    --card: #221c18;
+    --line: rgba(232, 214, 186, 0.16);
+    --ink: #f6efe4;
+    --muted: #b5a89a;
+    --gold: #e2b56a;
+    --gold2: #a9783a;
+    --red: #c8453a;
+    --red2: #8d2b24;
+    --ok: #7d9a72;
+    --shadow: 0 18px 50px rgba(0,0,0,.35);
+    --radius: 22px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Vazirmatn, Tahoma, sans-serif;
+    background:
+      radial-gradient(900px 420px at 80% -10%, rgba(200,69,58,.22), transparent 55%),
+      radial-gradient(700px 380px at -10% 110%, rgba(226,181,106,.12), transparent 50%),
+      var(--bg);
+    color: var(--ink);
+    min-height: 100dvh;
+  }
+  body::before {
+    content: "";
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 100% 4px;
+    mix-blend-mode: overlay;
+    opacity: .35;
+  }
+  button, input, select { font-family: inherit; }
+  button { cursor: pointer; }
+  .app { max-width: 480px; margin: 0 auto; padding: 18px 16px 36px; position: relative; z-index: 1; }
+  .top {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .seal {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 1.5px solid var(--gold);
+    display: grid; place-items: center;
+    color: var(--gold);
+    box-shadow: inset 0 0 0 4px rgba(226,181,106,.15);
+  }
+  .brand h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+  .brand p { margin: 0; color: var(--muted); font-size: 12px; }
+  .lang-switch { display: flex; background: #2a231e; border-radius: 999px; padding: 3px; border: 1px solid var(--line); }
+  .lang-switch button {
+    border: 0; background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 6px 10px; font-size: 12px;
+  }
+  .lang-switch button.on { background: var(--gold); color: #1a120c; font-weight: 700; }
+  .screen { display: none; animation: rise .35s ease; }
+  .screen.on { display: block; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .hero {
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 40%), var(--card);
+    border-radius: 28px;
+    padding: 22px 18px 18px;
+    box-shadow: var(--shadow);
+  }
+  .kicker { color: var(--gold); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; margin: 0 0 8px; }
+  .hero h2 { margin: 0 0 8px; font-family: Fraunces, Vazirmatn, serif; font-size: 34px; line-height: 1.15; font-weight: 560; }
+  .hero .lead { color: var(--muted); margin: 0 0 18px; line-height: 1.7; font-size: 14.5px; }
+  .stack { display: grid; gap: 10px; }
+  .btn {
+    border: 0; border-radius: 16px; padding: 14px 16px;
+    font-weight: 700; font-size: 15px; color: #1a120c; background: var(--gold);
+  }
+  .btn.red { background: var(--red); color: #fff; }
+  .btn.ghost {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  .btn.ghost.on { background: var(--gold); color: #1a120c; border-color: var(--gold); }
+  .btn.small { padding: 9px 12px; font-size: 13px; border-radius: 12px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 12px;
+  }
+  label.lbl { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  input[type="text"], input[type="number"], select {
+    width: 100%; background: #16120f; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 12px; font-size: 15px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--gold); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--line); background: #16120f; color: var(--ink);
+    border-radius: 999px; padding: 8px 12px; font-size: 13px;
+  }
+  .chip.on { background: #3a2a1c; border-color: var(--gold); color: var(--gold); }
+  .seg { display: flex; background: #16120f; border-radius: 14px; padding: 4px; border: 1px solid var(--line); gap: 4px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); border-radius: 11px; padding: 9px 6px; font-size: 13px; }
+  .seg button.on { background: #3a2a1c; color: var(--gold); font-weight: 700; }
+  .hint { color: var(--muted); font-size: 12.5px; line-height: 1.6; margin: 8px 0 0; }
+  .code {
+    font-family: Fraunces, serif; font-size: 42px; letter-spacing: .18em;
+    text-align: center; margin: 6px 0; color: var(--gold);
+  }
+  .players { display: grid; gap: 8px; margin-top: 8px; }
+  .player {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #16120f; border-radius: 14px; padding: 10px 12px; border: 1px solid var(--line);
+  }
+  .player b { font-weight: 700; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; margin-inline-end: 6px; }
+  .cover {
+    min-height: 320px; border-radius: 28px; border: 1px dashed var(--gold2);
+    display: grid; place-items: center; text-align: center; padding: 24px;
+    background: #181410;
+  }
+  .role-card {
+    min-height: 340px; border-radius: 28px; padding: 28px 20px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    text-align: center; position: relative; overflow: hidden;
+  }
+  .role-card.citizen {
+    background:
+      radial-gradient(400px 180px at 50% 0%, rgba(226,181,106,.25), transparent 60%),
+      #241c14;
+    border: 1px solid rgba(226,181,106,.4);
+  }
+  .role-card.spy {
+    background:
+      radial-gradient(400px 180px at 50% 0%, rgba(200,69,58,.4), transparent 60%),
+      #2a1412;
+    border: 1px solid rgba(200,69,58,.55);
+  }
+  .role-card.blank {
+    background: #1c1c1c;
+    border: 1px solid var(--line);
+  }
+  .role-tag { letter-spacing: .22em; font-size: 12px; color: var(--gold); }
+  .role-card.spy .role-tag { color: #f0a097; }
+  .word.kid { font-size: 64px; }
+    .kid-emoji { font-size: 72px; line-height: 1; margin: 8px 0; }
+    .kid-note { font-size: 20px; line-height: 1.6; color: var(--ink); }
+  .timer {
+    font-variant-numeric: tabular-nums;
+    font-size: 48px; text-align: center; font-family: Fraunces, serif; color: var(--gold);
+  }
+  .timer.warn { color: var(--red); }
+  .list-btn {
+    width: 100%; text-align: start; background: #16120f; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-top: 8px; font-size: 15px;
+  }
+  .list-btn.on { border-color: var(--gold); color: var(--gold); }
+  .stamp {
+    display: inline-block; border: 3px solid currentColor; padding: 6px 12px;
+    transform: rotate(-6deg); letter-spacing: .14em; font-weight: 800;
+  }
+  .score { display: flex; gap: 8px; }
+  .score div { flex: 1; background: #16120f; border-radius: 14px; padding: 10px; text-align: center; border: 1px solid var(--line); }
+  .score b { display: block; font-size: 22px; }
+  .qr { width: 160px; height: 160px; border-radius: 12px; background: #fff; margin: 8px auto; display: block; }
+  .footer-note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 16px; }
+  .modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.62);
+    display: none; place-items: end center; z-index: 5; padding: 12px;
+  }
+  .modal.on { display: grid; }
+  .sheet {
+    width: min(480px, 100%); background: #221c18; border-radius: 22px 22px 16px 16px;
+    padding: 16px; border: 1px solid var(--line); max-height: 80dvh; overflow: auto;
+  }
+  .sheet h3 { margin: 0 0 8px; }
+  .sheet p, .sheet li { color: var(--muted); line-height: 1.7; font-size: 14px; }
+  .toast {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: #2b2118; border: 1px solid var(--gold); color: var(--ink);
+    padding: 10px 14px; border-radius: 12px; display: none; z-index: 9; font-size: 13px;
+  }
+  .toast.on { display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="seal" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
+      <div>
+        <h1 id="brandTitle">جاسوس</h1>
+        <p id="brandSub">کلمه را بدان. خودت را لو نده. · نسخه ۱۳</p>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <button id="uiFa" class="on" type="button">فا</button>
+      <button id="uiEn" type="button">EN</button>
+    </div>
+  </header>
+
+  <section id="home" class="screen on">
+    <div class="hero">
+      <p class="kicker">PARTY GAME</p>
+      <h2 id="homeTitle">دور میز، یک کلمه، چند جاسوس</h2>
+      <p class="lead" id="homeLead">مستر لینک اتاق را می‌فرستد. هر کس اسم خودش را می‌گذارد. بعد فقط روی گوشی خودش می‌بیند شهروند است یا جاسوس.</p>
+      <div class="stack">
+        <button class="btn" id="goOnline" type="button">ساخت اتاق با لینک</button>
+        <button class="btn ghost" id="goJoin" type="button">ورود با کد اتاق</button>
+        <button class="btn ghost" id="goPass" type="button">یک گوشی، چرخاندن بین نفرات</button>
+        <button class="btn ghost" id="goRules" type="button">قوانین</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="setup" class="screen">
+    <div class="card">
+      <label class="lbl" id="lblName">اسم تو</label>
+      <input id="masterName" type="text" maxlength="18" placeholder="مثلاً سارا" />
+      <label class="row" style="margin-top:10px;color:var(--ink);font-size:15px">
+        <input id="kidCard" type="checkbox" style="width:auto" />
+        <span id="lblKid">شکل و توضیح برای این بازیکن (زیر ۱۰ سال)</span>
+      </label>
+      <p class="lbl" style="margin-top:12px" id="lblLang">زبان کلمات</p>
+      <div class="seg" id="wordLang">
+        <button type="button" data-v="fa" class="on">فارسی</button>
+        <button type="button" data-v="en">English</button>
+        <button type="button" data-v="mix">مخلوط</button>
+      </div>
+      <p class="lbl" style="margin-top:12px" id="lblLevel">سطح</p>
+      <div class="seg" id="levelSeg">
+        <button type="button" data-v="easy" class="on">ساده</button>
+        <button type="button" data-v="medium">متوسط</button>
+        <button type="button" data-v="hard">سخت</button>
+      </div>
+      <p class="lbl" style="margin-top:12px" id="lblCats">دسته‌ها — مستر فیلتر می‌کند</p>
+      <div class="chips" id="catChips"></div>
+      <p class="lbl" style="margin-top:12px" id="lblSpies">تعداد جاسوس</p>
+      <div class="seg" id="spySeg">
+        <button type="button" data-v="auto" class="on">خودکار</button>
+        <button type="button" data-v="manual">دستی</button>
+      </div>
+      <div id="spyManual" style="display:none;margin-top:8px">
+        <input id="spyCount" type="number" min="1" max="8" value="1" />
+      </div>
+      <p class="hint" id="spyHint"></p>
+      <p class="lbl" style="margin-top:12px" id="lblTimer">زمان بحث (دقیقه)</p>
+      <input id="minutes" type="number" min="1" max="20" value="6" />
+      <label class="row" style="margin-top:12px;color:var(--muted);font-size:13px">
+        <input id="blankRole" type="checkbox" style="width:auto" />
+        <span id="lblBlank">یک نفر بی‌کلمه (اختیاری)</span>
+      </label>
+      <div class="stack" style="margin-top:14px">
+        <button class="btn" id="setupNext" type="button">ادامه</button>
+        <button class="btn ghost" id="setupBack" type="button">بازگشت</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="passNames" class="screen">
+    <div class="card">
+      <label class="lbl" id="lblPlayers">اسم بازیکن‌ها — حداقل ۳ نفر</label>
+      <div id="nameList" class="stack"></div>
+      <button class="btn ghost" id="addName" type="button" style="margin-top:8px">افزودن نفر</button>
+      <p class="hint" id="passHint"></p>
+      <div class="stack" style="margin-top:12px">
+        <button class="btn" id="startPass" type="button">شروع و پخش نقش</button>
+        <button class="btn ghost" id="passBack" type="button">بازگشت</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="lobby" class="screen">
+    <div class="card" style="text-align:center">
+      <p class="lbl" id="lblRoom">کد اتاق</p>
+      <div class="code" id="roomCode">----</div>
+      <img class="qr" id="qr" alt="QR" />
+      <p class="hint" id="linkHint"></p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn small" id="copyLink" type="button">کپی لینک</button>
+        <button class="btn small ghost" id="shareLink" type="button">اشتراک</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <b id="lobbyTitle">حاضرها</b>
+        <span id="lobbyCount" style="color:var(--muted);text-align:end"></span>
+      </div>
+      <div id="lobbyList" class="players"></div>
+      <p class="hint" id="lobbyWait">قفل شدن گوشی اتاق را نمی‌بندد. با باز کردن همان لینک سر جایت برمی‌گردی.</p>
+      <div class="stack" style="margin-top:12px">
+        <button class="btn" id="startOnline" type="button">شروع بازی</button>
+        <button class="btn ghost" id="leaveRoom" type="button">خروج</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="reveal" class="screen">
+    <div id="revealBox"></div>
+  </section>
+
+  <section id="discuss" class="screen">
+    <div class="card">
+      <div class="timer" id="timer">06:00</div>
+      <p class="hint" style="text-align:center" id="discussHint">هر نفر یک توصیف کوتاه بگوید. خود کلمه ممنوع.</p>
+      <div class="score" style="margin-top:10px">
+        <div><span id="scCLabel">شهروند</span><b id="scC">0</b></div>
+        <div><span id="scSLabel">جاسوس</span><b id="scS">0</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <b id="aliveTitle">هنوز در بازی</b>
+      <div id="aliveList" class="players"></div>
+      <div class="stack" style="margin-top:12px">
+        <button class="btn" id="toVote" type="button">رأی برای حذف</button>
+        <button class="btn" id="endRound" type="button" style="display:none">همه رأی دادند، دور را تمام کن</button>
+        <button class="btn red" id="openGuess" type="button">حدس کلمه (جاسوس)</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="vote" class="screen">
+    <div class="card">
+      <h2 id="voteTitle" style="margin:0 0 6px;font-size:22px">به کی شک داری؟</h2>
+      <p class="hint" id="voteHint"></p>
+      <div id="voteList"></div>
+      <div class="stack" style="margin-top:12px">
+        <button class="btn" id="castVote" type="button">ثبت رأی</button>
+        <button class="btn" id="endRoundVote" type="button" style="display:none">همه رأی دادند، دور را تمام کن</button>
+        <button class="btn ghost" id="voteBack" type="button">برگشت به بحث</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="result" class="screen">
+    <div class="card" id="resultBox"></div>
+  </section>
+
+  <section id="over" class="screen">
+    <div class="card" id="overBox"></div>
+  </section>
+
+  <p class="footer-note" id="foot">حداقل ۳ نفر · جاسوس‌ها کلمه را نمی‌دانند</p>
+</div>
+
+<div class="modal" id="rulesModal">
+  <div class="sheet">
+    <h3 id="rulesTitle">قوانین</h3>
+    <div id="rulesBody"></div>
+    <button class="btn" id="closeRules" type="button" style="margin-top:8px">بستن</button>
+  </div>
+</div>
+<div class="modal" id="guessModal">
+  <div class="sheet">
+    <h3 id="guessTitle">حدس کلمه</h3>
+    <p id="guessLead">فقط یک بار. درست باشد جاسوس‌ها می‌برند. غلط باشد همان جاسوس حذف می‌شود.</p>
+    <div id="guessWhoBox" class="stack" style="margin:8px 0"></div>
+    <input id="guessInput" type="text" />
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="submitGuess" type="button">ثبت</button>
+      <button class="btn ghost" id="closeGuess" type="button">انصراف</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* Word bank for جاسوس — everyday to obscure, FA + EN */
+window.WORD_BANK = {
+  fa: {
+    food: {
+      easy: ["نان","برنج","پیتزا","کباب","چای","قهوه","سیب","موز","شیر","تخم‌مرغ","پنیر","بستنی","سوپ","مرغ","هندوانه","خیار","گوجه","سیب‌زمینی","ماست","شکلات","آب","نمک","قند","عسل","خرما"],
+      medium: ["زرشک‌پلو","آبگوشت","فتہ","سمبوسه","باقالی‌پلو","میرزاقاسمی","کشک‌بادمجان","فلافل","حمص","سوشی","لازانیا","تیرامیسو","کروسان","وافل","پاستا","ریزون","عدسی","حلیم","شیربرنج","گز","باقلوا","قهوه ترک","اسموتی","گرانولا","تاکو"],
+      hard: ["راتاتویی","برانی","پائیا","ریزوتو","سویچی","تمپورا","کیمچی","موس شکلات","کارپاچیو","بروسکتا","گاسپاچو","فوندو","کاسوله","بولانی","آش رشته","کوفته تبریزی","دلمه برگ مو","ترشی لیته","حلوا ارده","سمنو","فرنی","شله‌زرد","کله‌پاچه","باسماتی","کینوا"]
+    },
+    animal: {
+      easy: ["گربه","سگ","اسب","گاو","گوسفند","مرغ","ماهی","پرنده","شیر","فیل","خرگوش","اردک","بز","کلاغ","گنجشک","پروانه","مورچه","زنبور","لاک‌پشت","قورباغه","خرس","گرگ","روباه","موش","طوطی"],
+      medium: ["پنگوئن","زرافه","کانگورو","دلفین","نهنگ","اختاپوس","عقاب","جغد","آهو","شتر","یوزپلنگ","پلنگ","کرگدن","تمساح","پلاتیپوس","لمور","کوآلا","لاما","فلامینگو","طاووس","خارپشت","سنجاب","راکون","سمور","گورخر"],
+      hard: ["آکسولوتل","ناریوال","اوکاپی","تنبل","مورچه‌خوار","پانگولین","مانتیس","آخوندک","حلزون بی‌صدف","ستاره‌ماهی","توتیای دریایی","ماهی مرکب","شامپانزه","اورانگوتان","بابون","لمینگ","ولورین","کاراکال","سیاه‌گوش","قو","درنا","هوبره","سمندر","مارمولک خانگی","بزمجه"]
+    },
+    place: {
+      easy: ["مدرسه","بیمارستان","بازار","پارک","خانه","رستوران","فرودگاه","سینما","کتابخانه","مسجد","استخر","ساحل","کوه","جنگل","ایستگاه","بانک","داروخانه","نانوایی","زمین فوتبال","هتل","موزه","دانشگاه","اداره","خیابان","روستا"],
+      medium: ["زیردریایی","ایستگاه فضایی","فانوس دریایی","کاروانسرا","قنات","بازار مسگرها","رصدخانه","آکواریوم","شهر بازی","پیست اسکی","گلخانه","معدن","چاپخانه","استودیو","سالن اپرا","بندر","جزیره","واحه","غار","آتشفشان","قطب","صحرا","مترو","برج مراقبت","آزمایشگاه"],
+      hard: ["سرای مشیر","تخت جمشید","سی‌وسه‌پل","ارگ بم","کلوت","چغازنبیل","گنبد سلطانیه","بازار تبریز","عمارت مسعودیه","کاخ گلستان","مرداب انزلی","باداب سورت","چشمه باداب","دره ستارگان","جنگل ابر","کویر لوت","جزیره هرمز","غار علیصدر","قلعه رودخان","منار جنبان","عالی‌قاپو","چهلستون","نقش رستم","پرسپولیس","زیگورات"]
+    },
+    job: {
+      easy: ["معلم","پزشک","راننده","آشپز","پلیس","آتش‌نشان","کشاورز","مهندس","پرستار","نانوا","فروشنده","خلبان","نقاش","خواننده","بازیکن","قاضی","خبرنگار","مکانیک","خیاط","باغبان","دندانپزشک","داروساز","معمار","بازیگر","نویسنده"],
+      medium: ["باستان‌شناس","هواشناس","مترجم","تدوینگر","زنبوردار","غواص","کوهنورد راهنما","کتابدار","طراح لباس","جواهرساز","سفالگر","خوشنویس","دامپزشک","ستاره‌شناس","کارآگاه","دیپلمات","ملوان","نگهبان موزه","صدابردار","نورپرداز","باریستا","قصاب","عطار","شیشه‌گر","ساعت‌ساز"],
+      hard: ["مرمتگر آثار","رمزنگار","اقیانوس‌شناس","آتشفشان‌شناس","کاتب","منجم دربار","صراف","دلاک","نعلبند","رکاب‌ساز","خراط","میناکار","فیروزه‌تراش","تذهیب‌کار","صحاف","زری‌باف","قلمزن","حکاک","عطار سنتی","تعزیه‌گردان","نقال","پهلوان","مکتب‌دار","ملا","دیلماج"]
+    },
+    object: {
+      easy: ["صندلی","میز","کتاب","گوشی","کلید","ساعت","عینک","کیف","کفش","چتر","لامپ","آینه","قاشق","چنگال","بشقاب","لیوان","خودکار","دفتر","توپ","دوچرخه","تلویزیون","یخچال","در","پنجره","تخت"],
+      medium: ["قطب‌نما","دوربین دوچشمی","چتر نجات","تلسکوپ","میکروسکوپ","چمدان","کوله","نردبان","قیچی","سوزن","نخ","شمع","فندک","رادیو","گرامافون","ویولن","پیانو","طبل","بادکنک","بادبادک","ساعت شنی","کره جغرافی","نقشه","جعبه سیاه","لنگر"],
+      hard: ["اسطرلاب","چرتکه","منبت","جوهر دان","قلم‌نی","کلاف","دوک","چرخ نخ‌ریسی","هاون سنگی","دیگ مسی","مجمر","منقل","آفتابه","لگن","سرمه دان","آینه شمعدان","قلیان","نرگدان","گلدان مینا","تسبیح کهربا","انگشتر فیروزه","خنجر","سپر","کمان","زره"]
+    },
+    sport: {
+      easy: ["فوتبال","والیبال","بسکتبال","شنا","دو","تنیس","کشتی","دوچرخه‌سواری","پیاده‌روی","اسکی","بوکس","بدمینتون","پینگ‌پنگ","هندبال","فوتسال","ژیمناستیک","یوگا","کوهنوردی","اسب‌سواری","اسکیت","گلف","بیسبال","هاکی","شیرجه","وزنه"],
+      medium: ["شمشیربازی","تیراندازی با کمان","پولو","راگبی","کریکت","سنگ‌نوردی","موج‌سواری","پارکور","کاراته","جودو","تکواندو","کبدی","چوگان","دارت","بیلیارد","بولینگ","اسکواش","واترپلو","قایقرانی","بادبانی","سه‌گانه","ماراتن","پرتاب نیزه","پرش با نیزه","اسکیت سرعت"],
+      hard: ["کرلینگ","سپک تاکرا","پتانک","هارلینگ","باندي","نتبال","فلوربال","کینبال","زورخانه","کشتی پهلوانی","چوخه","آماده‌سازی کمان سنتی","تیراندازی تاریخی","چوگان صفوی","ورزش باستانی","میل‌بازی","کباده","سنگ‌نوردی یخ","اسکی صحرانوردی","بابسلد","اسکلتون","لوژ","پنج‌گانه مدرن","هپتاتلون","دکاتلون"]
+    },
+    nature: {
+      easy: ["درخت","گل","خورشید","ماه","ستاره","باران","برف","ابر","رود","دریا","کوه","سنگ","شن","برگ","چمن","آتش","باد","رعد","رنگین‌کمان","بهار","تابستان","پاییز","زمستان","جزیره","آبشار"],
+      medium: ["شفق قطبی","خسوف","کسوف","گردباد","سونامی","زلزله","آتشفشان","یخچال طبیعی","تپه مرجانی","مانگرو","ساوانا","توندرا","دلتا","تنگه","فلات","نسیم","مه","شبنم","تگرگ","صاعقه","کهکشان","سیاهچاله","دنباله‌دار","شهاب","مدار"],
+      hard: ["کلوت","نبکا","رگ روان","شوره‌زار","کال","گسل","یاردانگ","پلایا","سبخا","حرا","مانگروو","آتل","کالدرا","لاهار","ایگنیمبریت","استالاکتیت","استالاگمیت","کارست","دولین","چشمه آبگرم","فومارول","گایزر","پرمافراست","مورن","یخرفت"]
+    },
+    tech: {
+      easy: ["گوشی","لپ‌تاپ","اینترنت","ربات","دوربین","تلویزیون","هدفون","شارژر","موس","کیبورد","اسپیکر","تبلت","ساعت هوشمند","بازی ویدیویی","وای‌فای","باتری","فلش","پرینتر","ماهواره","پهپاد","اپ","رمز","صفحه","دکمه","کابل"],
+      medium: ["هوش مصنوعی","واقعیت مجازی","چاپگر سه‌بعدی","بلاکچین","ابر","سرور","فایروال","الگوریتم","داده","سنسور","جی‌پی‌اس","رادار","لیزر","فیبر نوری","تراشه","پردازنده","کارت گرافیک","هارد","رم","مودم","روتر","کیوآر","بیومتریک","تشخیص چهره","دستیار صوتی"],
+      hard: ["کیوبیت","درهم‌تنیدگی","ابررسانا","نانولوله","گرافن","لیتوگرافی","ویفر","FPGA","ASIC","کرنل","کامپایلر","بایت‌کد","ساندباکس","کانتینر","ارکستراسیون","لجستیک نرم","هش","نمک رمز","کلید عمومی","امضای دیجیتال","اوراق صفر","نود","دفترکل","شارد","رول‌آپ"]
+    },
+    clothes: {
+      easy: ["پیراهن","شلوار","کفش","کلاه","کت","دامن","روسری","جوراب","کمربند","ژاکت","تی‌شرت","مانتو","شال","دستکش","عینک آفتابی","ساعت","انگشتر","گردنبند","کوله","چادر","لباس خواب","لباس شنا","کراوات","پاپیون","بارانی"],
+      medium: ["کت چرم","پالتو","پالتوی خز","سارافون","جلیقه","اورال","هودی","سویشرت","لگ","دامن پلیسه","شلوار جین","کفش پاشنه‌بلند","چکمه","صندل","کلاه شاپو","بره","نقاب","ماسک","شال گردن","پاپیون ابریشم","دکمه سردست","سنجاق سینه","کمربند چرم","کیف کلاچ","روسری ابریشم"],
+      hard: ["قبا","عبا","لباده","ارخالق","چوغا","گیوه","چاروق","کلاه‌نمدی","دستار","مندیل","ینگی","شلوار قاسم‌آبادی","دامن ترکمن","سوزن‌دوزی بلوچ","ترمه‌بافی","زری‌باف","مخمل کاشان","ترمه یزد","پته کرمان","گلابتون","یقه‌چین","سردوشی","نشان سینه","کمربند مرصع","انگشتری مهر"]
+    },
+    culture: {
+      easy: ["فیلم","آهنگ","کتاب","نقاشی","تئاتر","رقص","عکس","داستان","شعر","کارتون","سریال","کنسرت","جشن","عید","نوروز","یلدا","سفره","هدیه","بازی","جوک","خاطره","رویابینی","افسانه","قهرمان","هیولا"],
+      medium: ["تعزیه","نقالی","شاهنامه","حافظ","خیام","مولوی","مینیاتور","کاشی‌کاری","خوشنویسی","تار","سه‌تار","کمانچه","دف","نی","سنتور","رباب","تنبور","سیاه‌مشق","مرقع","نگارگری","خیمه‌شب‌بازی","روحوضی","سیاه‌بازی","پرده‌خوانی","چاووشی‌خوانی"],
+      hard: ["هفت‌پیکر","منطق‌الطیر","بوستان","گلستان","معجم","تذکره","بحر طویل","مستزاد","مسمط","ترجیع‌بند","ترکیب‌بند","رباعی","دوبیتی","مثنوی","قصیده","غزل","قطعه","مفرد","تشبیب","تخلص","ردیف","قافیه","عروض","زحات","اختیارات شاعری"]
+    }
+  },
+  en: {
+    food: {
+      easy: ["bread","rice","pizza","burger","tea","coffee","apple","banana","milk","egg","cheese","ice cream","soup","chicken","watermelon","cake","cookie","pasta","salad","chocolate","water","salt","honey","juice","sandwich"],
+      medium: ["sushi","lasagna","croissant","waffle","taco","hummus","falafel","risotto","paella","ramen","dumpling","bagel","pretzel","granola","smoothie","tiramisu","brownie","nachos","guacamole","chowder","brisket","pancake","omelette","stew","curry"],
+      hard: ["ratatouille","gazpacho","carpaccio","bruschetta","fondue","cassoulet","ceviche","tartare","consomme","galantine","quenelle","souffle","clafoutis","madeleine","financier","kouign-amann","bouillabaisse","vichyssoise","brandade","rillettes","confit","mole","bibimbap","okonomiyaki","pho"]
+    },
+    animal: {
+      easy: ["cat","dog","horse","cow","sheep","fish","bird","lion","elephant","rabbit","duck","goat","crow","butterfly","ant","bee","turtle","frog","bear","wolf","fox","mouse","parrot","pig","chicken"],
+      medium: ["penguin","giraffe","kangaroo","dolphin","whale","octopus","eagle","owl","deer","camel","cheetah","leopard","rhino","crocodile","koala","flamingo","peacock","hedgehog","squirrel","raccoon","zebra","panda","seal","otter","moose"],
+      hard: ["axolotl","narwhal","okapi","pangolin","platypus","lemur","mantis","nudibranch","cuttlefish","aye-aye","quokka","capybara","tapir","cassowary","shoebill","kakapo","tuatara","olm","tardigrade","nautilus","coelacanth","blobfish","axolotl","fossa","markhor"]
+    },
+    place: {
+      easy: ["school","hospital","market","park","home","restaurant","airport","cinema","library","beach","mountain","forest","station","bank","hotel","museum","university","office","street","village","pool","stadium","bakery","pharmacy","farm"],
+      medium: ["submarine","space station","lighthouse","observatory","aquarium","greenhouse","mine","harbor","island","oasis","cave","volcano","desert","subway","laboratory","opera house","ski resort","carnival","warehouse","studio","courthouse","embassy","cathedral","bazaar","castle"],
+      hard: ["catacomb","cenote","fjord","atoll","caldera","archipelago","promontory","isthmus","estuary","delta","steppe","tundra","savanna","mesa","butte","arroyo","wadi","karst","doline","grotto","cloister","scriptorium","amphitheater","ziggurat","citadel"]
+    },
+    job: {
+      easy: ["teacher","doctor","driver","chef","police","firefighter","farmer","engineer","nurse","pilot","painter","singer","judge","journalist","mechanic","architect","actor","writer","dentist","gardener","baker","seller","soldier","barber","photographer"],
+      medium: ["archaeologist","translator","editor","diver","librarian","jeweler","potter","vet","astronomer","detective","diplomat","sailor","barista","glassblower","watchmaker","cartographer","curator","conductor","choreographer","sommelier","beekeeper","blacksmith","locksmith","midwife","ranger"],
+      hard: ["cryptographer","oceanographer","volcanologist","philologist","numismatist","horologist","luthier","conservator","paleographer","actuary","epidemiologist","ethnographer","lexicographer","semiotician","taxidermist","cooper","fletcher","chandler","scrivener","illuminator","limner","lapidary","assayer","harbormaster","cartograph"]
+    },
+    object: {
+      easy: ["chair","table","book","phone","key","watch","glasses","bag","shoe","umbrella","lamp","mirror","spoon","plate","cup","pen","notebook","ball","bicycle","door","window","bed","clock","bottle","box"],
+      medium: ["compass","binoculars","parachute","telescope","microscope","ladder","scissors","candle","violin","piano","drum","kite","hourglass","globe","map","anchor","suitcase","lantern","whistle","magnet","dice","chessboard","typewriter","camera","backpack"],
+      hard: ["astrolabe","abacus","sextant","orrery","quill","inkwell","sundial","armillary","lodestone","clepsydra","aeolipile","orrery","spyglass","monocle","lorgnette","chatelaine","snuffbox","seal stamp","wax seal","codex","palimpsest","amphora","krater","kylix","fibula"]
+    },
+    sport: {
+      easy: ["football","soccer","basketball","swimming","running","tennis","boxing","cycling","yoga","skiing","badminton","golf","baseball","hockey","diving","volleyball","handball","skating","surfing","climbing","rowing","archery","wrestling","gym","dance"],
+      medium: ["fencing","polo","rugby","cricket","parkour","karate","judo","squash","water polo","sailing","triathlon","marathon","javelin","curling","darts","billiards","bowling","lacrosse","softball","field hockey","badminton","decathlon","heptathlon","biathlon","skeleton"],
+      hard: ["hurling","sepak takraw","petanque","bandy","netball","floorball","kin-ball","bossaball","camogie","shinty","pesapallo","korfball","cycle ball","underwater hockey","synchronized swimming","modern pentathlon","nordic combined","ski jumping","luge","bobsleigh","canoe slalom","dressage","eventing","skeet","trap shooting"]
+    },
+    nature: {
+      easy: ["tree","flower","sun","moon","star","rain","snow","cloud","river","sea","mountain","stone","sand","leaf","grass","fire","wind","rainbow","spring","summer","autumn","winter","island","waterfall","lake"],
+      medium: ["aurora","eclipse","tornado","tsunami","earthquake","volcano","glacier","coral","mangrove","savanna","tundra","canyon","lightning","galaxy","comet","meteor","orbit","tide","fog","dew","hail","dune","reef","delta","geyser"],
+      hard: ["caldera","fumarole","lahar","ignimbrite","stalactite","stalagmite","karst","permafrost","moraine","drumlin","esker","cirque","fjord","nunatak","serac","firn","hoarfrost","virga","haboob","derecho","supercell","mammatus","lenticular","katabatic","williwaw"]
+    },
+    tech: {
+      easy: ["phone","laptop","internet","robot","camera","television","headphones","charger","mouse","keyboard","speaker","tablet","battery","printer","satellite","drone","app","password","screen","cable","wifi","game","button","usb","router"],
+      medium: ["artificial intelligence","virtual reality","3d printer","blockchain","server","firewall","algorithm","sensor","radar","laser","fiber optic","chip","processor","modem","biometric","facial recognition","cloud","database","encryption","satellite dish","gyroscope","lidar","firmware","pixel","bandwidth"],
+      hard: ["qubit","entanglement","superconductor","nanotube","graphene","lithography","wafer","fpga","kernel","compiler","bytecode","sandbox","container","orchestration","hash","salt","public key","ledger","shard","rollup","mempool","consensus","byzantine","merkle","zero knowledge"]
+    },
+    clothes: {
+      easy: ["shirt","pants","shoe","hat","coat","skirt","scarf","sock","belt","jacket","t-shirt","glove","sunglasses","dress","tie","boots","sandals","sweater","hoodie","jeans","uniform","pajamas","swimsuit","raincoat","cap"],
+      medium: ["leather jacket","trench coat","waistcoat","overalls","pleated skirt","heels","fedora","beret","silk scarf","cufflinks","brooch","clutch","kimono","sari","tuxedo","bow tie","cardigan","blazer","loafer","espadrille","turban","veil","stole","suspenders","pocket square"],
+      hard: ["doublet","breeches","crinoline","fichu","pelisse","redingote","spats","gaiters","jabot","ruff","farthingale","houppelande","chiton","peplos","himation","toga","stola","palla","kaftan","djellaba","agal","bisht","haori","hakama","obi"]
+    },
+    culture: {
+      easy: ["movie","song","book","painting","theater","dance","photo","story","poem","cartoon","concert","party","gift","game","joke","memory","dream","legend","hero","monster","festival","comic","statue","mask","stage"],
+      medium: ["opera","ballet","symphony","sonnet","haiku","fresco","mosaic","calligraphy","manuscript","orchestra","choir","puppet","mime","satire","myth","epic","fable","parable","trilogy","encore","overture","aria","libretto","score","gallery"],
+      hard: ["palimpsest","codex","incunabulum","illumination","marginalia","colophon","quire","folio","octave","sestina","villanelle","ghazal","qasida","rubai","masnavi","tanka","renga","noh","kabuki","bunraku","commedia","harlequin","pantisocracy","ekphrasis","cento"]
+    }
+  }
+};
+
+window.CATS = [
+  { id: "food", fa: "غذا", en: "Food" },
+  { id: "animal", fa: "حیوان", en: "Animals" },
+  { id: "place", fa: "مکان", en: "Places" },
+  { id: "job", fa: "شغل", en: "Jobs" },
+  { id: "object", fa: "وسیله", en: "Objects" },
+  { id: "sport", fa: "ورزش", en: "Sports" },
+  { id: "nature", fa: "طبیعت", en: "Nature" },
+  { id: "tech", fa: "تکنولوژی", en: "Tech" },
+  { id: "clothes", fa: "لباس", en: "Clothes" },
+  { id: "culture", fa: "فرهنگ", en: "Culture" }
+];
+
+</script>
+<script>
+/* Shared room. The phone is not the server: state lives as a retained MQTT message. */
+const BROKERS = [
+  "wss://broker.hivemq.com:8884/mqtt",
+  "wss://broker.emqx.io:8084/mqtt"
+];
+
+const net = {
+  client: null,
+  room: null,
+  seenVersion: 0,
+  applying: false
+};
+
+function wantsKid() {
+  const age = readAge();
+  const ticked = $("kidCard") && $("kidCard").checked;
+  const kid = ticked || (age > 0 && age < 10);
+  localStorage.setItem("jasoos-kid", kid ? "1" : "0");
+  return kid;
+}
+
+function readAge() {
+  const raw = ($("masterAge") && $("masterAge").value || localStorage.getItem("jasoos-age") || "").trim();
+  if (!raw) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  localStorage.setItem("jasoos-age", String(n));
+  return n;
+}
+
+function pid() {
+  const key = "jasoos-pid";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = Math.random().toString(36).slice(2, 10);
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function rememberHost(code, id) {
+  localStorage.setItem("jasoos-host-room", String(code || "").toUpperCase());
+  localStorage.setItem("jasoos-host-id", id);
+}
+
+function amStoredHost(code) {
+  return localStorage.getItem("jasoos-host-room") === String(code || "").toUpperCase()
+    && localStorage.getItem("jasoos-host-id") === state.meId;
+}
+
+function topic(code) {
+  return "jasoos/room/" + String(code || "").toLowerCase();
+}
+
+function blankRoom(code, hostId, name) {
+  return {
+    code,
+    hostId,
+    version: 1,
+    phase: "lobby",
+    settings: {
+      wordLang: state.wordLang,
+      level: state.level,
+      cats: [...state.cats],
+      spyMode: state.spyMode,
+      spyCount: Number($("spyCount").value) || 1,
+      minutes: state.minutes,
+      blank: state.blank
+    },
+    players: [{ id: hostId, name, host: true, role: "", alive: true, age: readAge(), kid: wantsKid() }],
+    word: "",
+    scores: { citizen: 0, spy: 0 },
+    round: 1,
+    discussEndsAt: 0,
+    votes: {},
+    guessUsed: false,
+    lastElim: null,
+    win: "",
+    used: []
+  };
+}
+
+function connectRoom(code, onReady) {
+  const url = BROKERS[0];
+  const client = mqtt.connect(url, {
+    clientId: "j" + pid() + Math.random().toString(36).slice(2, 6),
+    clean: true,
+    reconnectPeriod: 1500,
+    connectTimeout: 8000,
+    keepalive: 30
+  });
+  net.client = client;
+  client.on("connect", () => {
+    client.subscribe(topic(code), { qos: 1 }, () => onReady && onReady());
+  });
+  client.on("message", (_t, buf) => {
+    try { applyRemote(JSON.parse(buf.toString())); } catch (e) { /* ignore bad payload */ }
+  });
+  client.on("error", () => toast(state.ui === "fa" ? "اتصال اتاق لحظه‌ای قطع شد، خودش برمی‌گردد" : "Room link blipped, it will return"));
+}
+
+function publishRoom(room) {
+  if (!net.client || !room) return;
+  room.version = (room.version || 0) + 1;
+  room.updatedAt = Date.now();
+  net.room = room;
+  net.seenVersion = room.version;
+  net.client.publish(topic(room.code), JSON.stringify(room), { qos: 1, retain: true });
+}
+
+function mergeRoom(room) {
+  if (!net.room || !room) return room;
+  const prev = net.room.players || [];
+  const incoming = room.players || [];
+  const map = new Map();
+  prev.forEach((p) => map.set(p.id, { ...p }));
+  incoming.forEach((p) => {
+    const old = map.get(p.id);
+    map.set(p.id, old ? { ...old, ...p, seen: !!(old.seen || p.seen), host: !!(old.host || p.host) } : p);
+  });
+  if (!room.hostId && net.room.hostId) room.hostId = net.room.hostId;
+  if (room.hostId) {
+    map.forEach((p) => { p.host = p.id === room.hostId; });
+  }
+  room.players = [...map.values()].filter((p) => p && p.id);
+  return room;
+}
+
+function applyRemote(room) {
+  if (!room || !room.code) return;
+  if (room.version && room.version < net.seenVersion) return;
+  room = mergeRoom(room);
+  net.seenVersion = room.version || 0;
+  net.room = room;
+  net.applying = true;
+  state.mode = "online";
+  state.room = room.code;
+  state.players = room.players || [];
+  state.word = room.word || "";
+  state.wordShown = room.word || "";
+  state.wordFa = room.wordFa || "";
+  state.scores = room.scores || { citizen: 0, spy: 0 };
+  state.round = room.round || 1;
+  state.votes = room.votes || {};
+  state.guessUsed = !!room.guessUsed;
+  const me = state.players.find((p) => p.id === state.meId);
+  state.isMaster = room.hostId === state.meId || !!(me && me.host) || amStoredHost(room.code);
+  if (state.isMaster && room.hostId && room.hostId !== state.meId && amStoredHost(room.code)) room.hostId = state.meId;
+  state.myRole = me ? me.role : "";
+  if (room.phase === "lobby") {
+    if (state.meId && !state.players.some((p) => p.id === state.meId) && localStorage.getItem("jasoos-name")) {
+      const host = amStoredHost(room.code);
+      room.players.push({ id: state.meId, name: localStorage.getItem("jasoos-name"), host: host, role: "", alive: true, age: readAge(), kid: wantsKid() });
+      if (host) room.hostId = state.meId;
+      publishRoom(room);
+      return;
+    }
+    show("lobby");
+    renderLobby();
+  } else if (room.phase === "card") {
+    if (me && !me.seen) showMyCard();
+    else waitCard();
+  } else if (room.phase === "discuss") {
+    show("discuss");
+    armTimer(room.discussEndsAt);
+    paintDiscuss();
+  } else if (room.phase === "vote") {
+    openVote();
+    const alive = room.players.filter((p) => p.alive);
+    const allIn = alive.every((p) => (room.votes || {})[p.id]);
+    const end = $("endRoundVote");
+    if (end) end.style.display = allIn && state.isMaster ? "block" : "none";
+    if (allIn && state.isMaster) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی." : "Everyone voted. You can end the round.";
+  } else if (room.phase === "result") {
+    showResult({
+      tie: !room.lastElim,
+      elim: room.lastElim,
+      win: room.win,
+      reason: room.reason || ""
+    });
+  }
+  net.applying = false;
+}
+
+function armTimer(endsAt) {
+  clearInterval(state.timer);
+  const tick = () => {
+    state.left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    paintTimer();
+    if (state.left <= 0 && state.isMaster && net.room && net.room.phase === "discuss") {
+      net.room.phase = "vote";
+      net.room.votes = {};
+      publishRoom(net.room);
+    }
+  };
+  tick();
+  state.timer = setInterval(tick, 500);
+}
+
+function forceDiscuss() {
+  if (!net.room) return;
+  if (!state.isMaster && !amStoredHost(state.room)) return;
+  state.isMaster = true;
+  if (net.room.hostId !== state.meId) net.room.hostId = state.meId;
+  net.room.phase = "discuss";
+  if (!net.room.discussEndsAt) net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
+  publishRoom(net.room);
+}
+
+function waitCard() {
+  show("reveal");
+  const host = state.isMaster || amStoredHost(state.room);
+  if (host) {
+    state.isMaster = true;
+    const seen = (net.room && net.room.players || []).filter((p) => p.seen).length;
+    const total = (net.room && net.room.players || []).length;
+    $("revealBox").innerHTML = `<div class="cover"><p>کارت‌ها پخش شد. ${seen} از ${total} نفر دیدند.</p><button class="btn" id="forceDiscuss" type="button">شروع بحث</button></div>`;
+    const b = $("forceDiscuss");
+    if (b) b.onclick = forceDiscuss;
+  } else {
+    $("revealBox").innerHTML = `<div class="cover"><p>${t("waitHost")}</p></div>`;
+  }
+}
+
+function hostRoom() {
+  const name = $("masterName").value.trim();
+  if (!name) return toast(t("needName"));
+  state.mode = "online";
+  state.isMaster = true;
+  state.meId = pid();
+  state.room = Math.random().toString(36).slice(2, 6).toUpperCase();
+  rememberHost(state.room, state.meId);
+  history.replaceState(null, "", roomLink());
+  localStorage.setItem("jasoos-room", state.room);
+  localStorage.setItem("jasoos-name", name);
+  localStorage.setItem("jasoos-age", String(readAge() || ""));
+  show("lobby");
+  renderLobby();
+  connectRoom(state.room, () => {
+    publishRoom(blankRoom(state.room, state.meId, name));
+  });
+}
+
+function joinRoom(code) {
+  const name = $("masterName").value.trim();
+  if (!name) return toast(t("needName"));
+  state.mode = "online";
+  state.meId = pid();
+  state.room = code.toUpperCase();
+  localStorage.setItem("jasoos-room", state.room);
+  localStorage.setItem("jasoos-name", name);
+  localStorage.setItem("jasoos-age", String(readAge() || ""));
+  history.replaceState(null, "", roomLink());
+  show("lobby");
+  $("roomCode").textContent = state.room;
+  connectRoom(state.room, () => {
+    setTimeout(() => {
+      if (!net.room) return toast(t("noRoom"));
+      if (!net.room.players.some((p) => p.id === state.meId)) {
+        if (net.room.phase !== "lobby") return toast(state.ui === "fa" ? "بازی شروع شده" : "Game already started");
+        net.room.players.push({ id: state.meId, name: name.slice(0, 18), host: false, role: "", alive: true, age: readAge(), kid: wantsKid() });
+        publishRoom(net.room);
+      } else {
+        const mine = net.room.players.find((p) => p.id === state.meId);
+        mine.age = readAge();
+        mine.kid = wantsKid();
+        mine.name = name.slice(0, 18);
+        publishRoom(net.room);
+      }
+      applyRemote(net.room);
+    }, 1200);
+  });
+}
+
+window.hostRoomShared = hostRoom;
+window.joinRoomShared = joinRoom;
+
+function resumeIfKnown() {
+  const code = new URLSearchParams(location.search).get("room") || localStorage.getItem("jasoos-room");
+  const savedName = localStorage.getItem("jasoos-name");
+  if (!code || !savedName) return;
+  state.meId = pid();
+  state.room = code.toUpperCase();
+  state.mode = "online";
+  $("masterName").value = savedName;
+  connectRoom(state.room, () => {
+    setTimeout(() => {
+      if (net.room && net.room.players.some((p) => p.id === state.meId)) applyRemote(net.room);
+    }, 800);
+  });
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (net.client && state.room && !net.client.connected) net.client.reconnect();
+  if (net.room && net.room.phase === "discuss" && net.room.discussEndsAt) armTimer(net.room.discussEndsAt);
+});
+window.addEventListener("pageshow", () => {
+  if (net.client && !net.client.connected && state.room) net.client.reconnect();
+});
+
+</script>
+<script>
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  ui: "fa",
+  mode: "pass",
+  wordLang: "fa",
+  level: "easy",
+  cats: new Set(window.CATS.map((c) => c.id)),
+  spyMode: "auto",
+  minutes: 6,
+  blank: false,
+  players: [],
+  word: "",
+  wordShown: "",
+  room: "",
+  isMaster: false,
+  meId: "",
+  peer: null,
+  conns: new Map(),
+  phase: "home",
+  revealAt: 0,
+  seen: {},
+  votes: {},
+  selectedVote: "",
+  scores: { citizen: 0, spy: 0 },
+  round: 1,
+  used: [],
+  timer: null,
+  left: 0,
+  guessUsed: false,
+  lastElim: null
+};
+
+const copy = {
+  fa: {
+    brandSub: "کلمه را بدان. خودت را لو نده.",
+    homeTitle: "دور میز، یک کلمه، چند جاسوس",
+    homeLead: "مستر لینک را می‌فرستد. هر کس اسم خودش را می‌گذارد. بعد فقط نقش خودش را می‌بیند: شهروند با یک کلمه، یا جاسوس بی‌کلمه.",
+    goOnline: "ساخت اتاق با لینک",
+    goJoin: "ورود با کد اتاق",
+    goPass: "یک گوشی، چرخاندن بین نفرات",
+    goRules: "قوانین",
+    name: "اسم تو",
+    wordLang: "زبان کلمات",
+    level: "سطح",
+    cats: "دسته‌ها — مستر فیلتر می‌کند",
+    spies: "تعداد جاسوس",
+    auto: "خودکار",
+    manual: "دستی",
+    timer: "زمان بحث (دقیقه)",
+    blank: "یک نفر بی‌کلمه (اختیاری)",
+    next: "ادامه",
+    back: "بازگشت",
+    players: "اسم بازیکن‌ها — حداقل ۳ نفر",
+    add: "افزودن نفر",
+    startDeal: "شروع و پخش نقش",
+    room: "کد اتاق",
+    copy: "کپی لینک",
+    share: "اشتراک",
+    lobby: "حاضرها",
+    wait: "قفل گوشی اتاق را نمی‌بندد. همان لینک را دوباره باز کن، سر جایت هستی.",
+    start: "شروع بازی",
+    leave: "خروج",
+    discuss: "هر نفر یک توصیف کوتاه بگوید. خود کلمه ممنوع.",
+    alive: "هنوز در بازی",
+    voteBtn: "رأی برای حذف",
+    guessBtn: "حدس کلمه (جاسوس)",
+    voteTitle: "به کی شک داری؟",
+    cast: "ثبت رأی",
+    voteBack: "برگشت به بحث",
+    citizen: "شهروند",
+    spy: "جاسوس",
+    blankRole: "بی‌کلمه",
+    youSpy: "تو جاسوسی",
+    youCitizen: "تو شهروندی",
+    youBlank: "تو بی‌کلمه‌ای",
+    spyHelp: "کلمه را نمی‌دانی. از توصیف بقیه حدس بزن و بلوف بزن.",
+    citizenHelp: "این کلمه را برای بقیه توصیف کن، بدون گفتن خودش.",
+    blankHelp: "کلمه‌ای نداری. باید بلوف بزنی تا حذف نشوی.",
+    giveTo: "گوشی را بده به",
+    ready: "آماده‌ام، نشان بده",
+    hide: "دیدم، پنهان کن",
+    allSeen: "همه نقش‌شان را دیدند",
+    beginTalk: "شروع بحث",
+    yourTurn: "نقش تو",
+    hideSelf: "پنهان کردم",
+    easy: "ساده",
+    medium: "متوسط",
+    hard: "سخت",
+    mix: "مخلوط",
+    fa: "فارسی",
+    en: "English",
+    need3: "حداقل ۳ نفر لازم است.",
+    needName: "اسم را بنویس.",
+    spiesHint: "پیشنهاد خودکار: تا ۵ نفر ۱ جاسوس، تا ۸ نفر ۲، تا ۱۲ نفر ۳.",
+    copied: "لینک کپی شد",
+    joining: "در حال اتصال به اتاق…",
+    noRoom: "اتاق پیدا نشد. کد را چک کن یا از حالت یک گوشی استفاده کن.",
+    peerFail: "اتصال آنلاین برقرار نشد. حالت چرخاندن گوشی را باز کن.",
+    kicked: "از اتاق خارج شدی",
+    waitHost: "منتظر شروع مستر…",
+    tie: "رأی مساوی بود. این دور کسی حذف نشد.",
+    out: "حذف شد",
+    citizensWin: "شهروندها بردند",
+    spiesWin: "جاسوس‌ها بردند",
+    wordWas: "کلمه این دور",
+    nextRound: "دور بعد",
+    again: "بازی تازه",
+    home: "خانه",
+    guessTitle: "حدس کلمه",
+    guessLead: "فقط یک بار. درست باشد جاسوس‌ها می‌برند. غلط باشد همان جاسوس حذف می‌شود.",
+    submit: "ثبت",
+    cancel: "انصراف",
+    rulesTitle: "قوانین",
+    foot: "حداقل ۳ نفر · تعداد جاسوس با جمعیت تنظیم می‌شود",
+    close: "بستن",
+    linkHelp: "این لینک را بفرست. هر نفر اسم خودش را می‌گذارد.",
+    you: "تو",
+    host: "مستر",
+    connected: "وصل",
+    spyCountBad: "تعداد جاسوس باید کمتر از شهروندها باشد.",
+    round: "دور",
+    saw: "دیده",
+    notYet: "هنوز ندیده"
+  },
+  en: {
+    brandSub: "Know the word. Do not blow your cover.",
+    homeTitle: "One word. A few spies.",
+    homeLead: "The host shares a link. Everyone sets a name, then sees only their own card: citizen with a word, or spy with none.",
+    goOnline: "Create a room link",
+    goJoin: "Join with a code",
+    goPass: "One phone, pass it around",
+    goRules: "Rules",
+    name: "Your name",
+    wordLang: "Word language",
+    level: "Difficulty",
+    cats: "Categories — host can filter",
+    spies: "Spy count",
+    auto: "Auto",
+    manual: "Manual",
+    timer: "Talk time (minutes)",
+    blank: "One blank card (optional)",
+    next: "Continue",
+    back: "Back",
+    players: "Player names — at least 3",
+    add: "Add player",
+    startDeal: "Deal roles",
+    room: "Room code",
+    copy: "Copy link",
+    share: "Share",
+    lobby: "In the room",
+    wait: "Locking a phone does not close the room. Reopen the same link and you are still seated.",
+    start: "Start game",
+    leave: "Leave",
+    discuss: "Each player gives a short clue. Never say the word.",
+    alive: "Still in",
+    voteBtn: "Vote someone out",
+    guessBtn: "Guess the word (spy)",
+    voteTitle: "Who is suspicious?",
+    cast: "Lock vote",
+    voteBack: "Back to talk",
+    citizen: "Citizen",
+    spy: "Spy",
+    blankRole: "Blank",
+    youSpy: "You are the spy",
+    youCitizen: "You are a citizen",
+    youBlank: "You have no word",
+    spyHelp: "You do not know the word. Bluff, and learn it from the clues.",
+    citizenHelp: "Describe this word without saying it.",
+    blankHelp: "You have no word. Bluff so you are not voted out.",
+    giveTo: "Pass the phone to",
+    ready: "I'm ready, show my card",
+    hide: "Hide it",
+    allSeen: "Everyone has seen their card",
+    beginTalk: "Start discussion",
+    yourTurn: "Your card",
+    hideSelf: "Hide",
+    easy: "Easy",
+    medium: "Medium",
+    hard: "Hard",
+    mix: "Mixed",
+    fa: "فارسی",
+    en: "English",
+    need3: "Need at least 3 players.",
+    needName: "Enter a name.",
+    spiesHint: "Auto: 1 spy up to 5 players, 2 up to 8, 3 up to 12.",
+    copied: "Link copied",
+    joining: "Joining room…",
+    noRoom: "Room not found. Check the code, or use pass-the-phone.",
+    peerFail: "Online link failed. Use pass-the-phone instead.",
+    kicked: "You were removed",
+    waitHost: "Waiting for the host…",
+    tie: "Tie vote. Nobody leaves this round.",
+    out: "eliminated",
+    citizensWin: "Citizens win",
+    spiesWin: "Spies win",
+    wordWas: "The word was",
+    nextRound: "Next round",
+    again: "New session",
+    home: "Home",
+    guessTitle: "Guess the word",
+    guessLead: "One try. Correct: spies win. Wrong: that spy is out.",
+    submit: "Submit",
+    cancel: "Cancel",
+    rulesTitle: "Rules",
+    foot: "Minimum 3 players · spy count scales with the table",
+    close: "Close",
+    linkHelp: "Send this link. Each person sets their own name.",
+    you: "You",
+    host: "Host",
+    connected: "in",
+    spyCountBad: "Spies must stay fewer than citizens.",
+    round: "Round",
+    saw: "seen",
+    notYet: "waiting"
+  }
+};
+
+function t(key) { return copy[state.ui][key] || key; }
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("on");
+  setTimeout(() => el.classList.remove("on"), 2200);
+}
+
+function show(id) {
+  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("on"));
+  $(id).classList.add("on");
+  state.phase = id;
+}
+
+function autoSpies(n) {
+  if (n <= 5) return 1;
+  if (n <= 8) return 2;
+  if (n <= 12) return 3;
+  if (n <= 16) return 4;
+  return Math.max(1, Math.floor(n / 4));
+}
+
+function spyTarget(n) {
+  if (state.spyMode === "manual") return Math.max(1, Number($("spyCount").value) || 1);
+  return autoSpies(n);
+}
+
+function applyUi() {
+  const fa = state.ui === "fa";
+  document.documentElement.lang = fa ? "fa" : "en";
+  document.documentElement.dir = fa ? "rtl" : "ltr";
+  $("uiFa").classList.toggle("on", fa);
+  $("uiEn").classList.toggle("on", !fa);
+  $("brandSub").textContent = t("brandSub");
+  $("homeTitle").textContent = t("homeTitle");
+  $("homeLead").textContent = t("homeLead");
+  $("goOnline").textContent = t("goOnline");
+  $("goJoin").textContent = t("goJoin");
+  $("goPass").textContent = t("goPass");
+  $("goRules").textContent = t("goRules");
+  $("lblName").textContent = t("name");
+  $("masterName").placeholder = fa ? "مثلاً سارا" : "e.g. Sara";
+  if ($("lblKid")) $("lblKid").textContent = fa ? "شکل و توضیح برای این بازیکن" : "Picture and hint for this player";
+  $("lblLang").textContent = t("wordLang");
+  $("lblLevel").textContent = t("level");
+  $("lblCats").textContent = t("cats");
+  $("lblSpies").textContent = t("spies");
+  $("lblTimer").textContent = t("timer");
+  $("lblBlank").textContent = t("blank");
+  $("setupNext").textContent = t("next");
+  $("setupBack").textContent = t("back");
+  $("lblPlayers").textContent = t("players");
+  $("addName").textContent = t("add");
+  $("startPass").textContent = t("startDeal");
+  $("passBack").textContent = t("back");
+  $("lblRoom").textContent = t("room");
+  $("copyLink").textContent = t("copy");
+  $("shareLink").textContent = t("share");
+  $("lobbyTitle").textContent = t("lobby");
+  $("lobbyWait").textContent = t("wait");
+  $("startOnline").textContent = t("start");
+  $("leaveRoom").textContent = t("leave");
+  $("discussHint").textContent = t("discuss");
+  $("aliveTitle").textContent = t("alive");
+  $("toVote").textContent = t("voteBtn");
+  $("openGuess").textContent = t("guessBtn");
+  $("voteTitle").textContent = t("voteTitle");
+  $("castVote").textContent = t("cast");
+  $("voteBack").textContent = t("voteBack");
+  $("scCLabel").textContent = t("citizen");
+  $("scSLabel").textContent = t("spy");
+  $("guessTitle").textContent = t("guessTitle");
+  $("guessLead").textContent = t("guessLead");
+  $("submitGuess").textContent = t("submit");
+  $("closeGuess").textContent = t("cancel");
+  $("rulesTitle").textContent = t("rulesTitle");
+  $("closeRules").textContent = t("close");
+  $("foot").textContent = t("foot");
+  $("spyHint").textContent = t("spiesHint");
+  const labels = { fa: t("fa"), en: t("en"), mix: t("mix"), easy: t("easy"), medium: t("medium"), hard: t("hard"), auto: t("auto"), manual: t("manual") };
+  document.querySelectorAll("#wordLang button, #levelSeg button, #spySeg button").forEach((b) => {
+    if (labels[b.dataset.v]) b.textContent = labels[b.dataset.v];
+  });
+  renderCats();
+  renderRules();
+}
+
+function renderCats() {
+  $("catChips").innerHTML = "";
+  window.CATS.forEach((c) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (state.cats.has(c.id) ? " on" : "");
+    b.textContent = state.ui === "fa" ? c.fa : c.en;
+    b.onclick = () => {
+      if (state.cats.has(c.id)) state.cats.delete(c.id);
+      else state.cats.add(c.id);
+      if (!state.cats.size) state.cats.add(c.id);
+      renderCats();
+    };
+    $("catChips").appendChild(b);
+  });
+}
+
+function renderRules() {
+  const fa = state.ui === "fa";
+  $("rulesBody").innerHTML = fa
+    ? `<ol>
+      <li>حداقل ۳ نفر. تعداد جاسوس با جمعیت عوض می‌شود: تا ۵ نفر یک جاسوس، ۶ تا ۸ دو جاسوس، ۹ تا ۱۲ سه جاسوس. مستر می‌تواند دستی هم بگذارد.</li>
+      <li>شهروندها یک کلمهٔ یکسان می‌بینند. جاسوس‌ها کلمه را نمی‌بینند. کلمه از دسته و سطح انتخابی، کاملاً تصادفی است.</li>
+      <li>به نوبت یک توصیف کوتاه بگویید. گفتن خود کلمه ممنوع است.</li>
+      <li>رأی می‌گیرید و پرتکرارترین نفر حذف می‌شود. تساوی یعنی کسی بیرون نمی‌رود.</li>
+      <li>شهروندها وقتی می‌برند که همه جاسوس‌ها حذف شوند. جاسوس‌ها وقتی می‌برند که هم‌تعداد یا بیشتر از شهروندهای باقی‌مانده شوند، یا کلمه را درست حدس بزنند.</li>
+      <li>اگر همه گوشی ندارند، حالت چرخاندن را بزنید. هر نفر فقط کارت خودش را می‌بیند و قبل از نفر بعدی صفحه پنهان می‌شود.</li>
+    </ol>`
+    : `<ol>
+      <li>At least 3 players. Spy count scales: 1 up to 5 players, 2 up to 8, 3 up to 12. The host can override.</li>
+      <li>Citizens share one random word. Spies see no word. Host filters language, difficulty, and categories.</li>
+      <li>Take turns giving a short clue. Do not say the word.</li>
+      <li>Vote. The top name is out. A tie removes nobody.</li>
+      <li>Citizens win by removing every spy. Spies win if they tie or outnumber remaining citizens, or guess the word.</li>
+      <li>No phones for everyone? Use pass-the-phone. Each person sees only their card, then the screen locks.</li>
+    </ol>`;
+}
+
+function pickWord() {
+  const langs = state.wordLang === "mix" ? ["fa", "en"] : [state.wordLang];
+  const pool = [];
+  langs.forEach((lang) => {
+    state.cats.forEach((cat) => {
+      const bag = window.WORD_BANK[lang][cat][state.level] || [];
+      bag.forEach((w) => pool.push({ w, lang }));
+    });
+  });
+  const fresh = pool.filter((x) => !state.used.includes(x.lang + ":" + x.w));
+  const src = fresh.length ? fresh : pool;
+  const pick = src[Math.floor(Math.random() * src.length)];
+  state.used.push(pick.lang + ":" + pick.w);
+  state.word = pick.w;
+  state.wordShown = pick.w;
+  state.wordLangNow = pick.lang;
+}
+
+function deal(players) {
+  pickWord();
+  const list = players.map((p) => ({ ...p, alive: true, role: "citizen" }));
+  const ids = list.map((p) => p.id);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  let spies = spyTarget(list.length);
+  if (state.blank) spies = Math.min(spies, list.length - 3);
+  spies = Math.max(1, Math.min(spies, list.length - 2));
+  ids.slice(0, spies).forEach((id) => {
+    list.find((p) => p.id === id).role = "spy";
+  });
+  if (state.blank && list.length - spies >= 3) {
+    const blankId = ids[spies];
+    list.find((p) => p.id === blankId).role = "blank";
+  }
+  state.players = list;
+  state.guessUsed = false;
+  state.votes = {};
+  state.seen = {};
+  state.lastElim = null;
+}
+
+function roomLink() {
+  const url = new URL(location.href);
+  url.searchParams.set("room", state.room);
+  return url.toString();
+}
+
+function renderLobby() {
+  $("roomCode").textContent = state.room || "----";
+  $("qr").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(roomLink());
+  $("linkHint").textContent = t("linkHelp");
+  $("lobbyCount").textContent = state.players.length + " · " + t("connected");
+  $("lobbyList").innerHTML = state.players.map((p) => {
+    const me = p.id === state.meId ? " · " + t("you") : "";
+    const host = p.host ? " · " + t("host") : "";
+    const kick = state.isMaster && p.id !== state.meId
+      ? `<button class="btn small ghost" data-kick="${p.id}">×</button>` : "";
+    const kid = p.kid ? " · شکل" : "";
+    return `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b>${me}${host}${kid}</span>${kick}</div>`;
+  }).join("");
+  $("lobbyList").querySelectorAll("[data-kick]").forEach((b) => {
+    b.onclick = () => kick(b.dataset.kick);
+  });
+  $("startOnline").style.display = state.isMaster ? "block" : "none";
+  $("startOnline").disabled = state.players.length < 3;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => {
+    if (c === "&") return "&" + "amp;";
+    if (c === "<") return "&" + "lt;";
+    if (c === ">") return "&" + "gt;";
+    if (c === '"') return "&" + "quot;";
+    return "&" + "#39;";
+  });
+}
+
+function broadcast(msg) {
+  state.conns.forEach((conn) => {
+    if (conn.open) conn.send(msg);
+  });
+}
+
+function publicState() {
+  return {
+    type: "lobby",
+    room: state.room,
+    players: state.players.map((p) => ({ id: p.id, name: p.name, host: !!p.host }))
+  };
+}
+
+function kick(id) {
+  if (!net.room) return;
+  net.room.players = net.room.players.filter((p) => p.id !== id);
+  publishRoom(net.room);
+}
+
+function startOnline() {
+  if (!net.room || net.room.players.length < 3) return toast(t("need3"));
+  const spies = spyTarget(net.room.players.length);
+  if (spies >= net.room.players.length - 1) return toast(t("spyCountBad"));
+  state.wordLang = (net.room.nextLang || net.room.settings.wordLang || "fa");
+  net.room.settings.wordLang = state.wordLang;
+  state.level = net.room.settings.level;
+  state.cats = new Set(net.room.settings.cats);
+  state.spyMode = net.room.settings.spyMode;
+  state.blank = net.room.settings.blank;
+  state.minutes = net.room.settings.minutes;
+  state.used = net.room.used || [];
+  deal(net.room.players.map((p) => ({ id: p.id, name: p.name, host: p.host, age: p.age, kid: p.kid })));
+  net.room.players = state.players.map((p) => ({ ...p, seen: false }));
+  net.room.word = state.word;
+  net.room.wordFa = "";
+  net.room.used = state.used;
+  net.room.phase = "card";
+  net.room.votes = {};
+  net.room.win = "";
+  net.room.reason = "";
+  net.room.lastElim = null;
+  net.room.guessUsed = false;
+  net.room.discussEndsAt = 0;
+  net.room.round = state.round;
+  publishRoom(net.room);
+  enrichWord();
+}
+
+function applyDeal(msg) {
+  state.players = msg.players.map((p) => ({ ...p, alive: true, role: p.id === msg.you.id ? msg.you.role : "hidden" }));
+  state.meId = msg.you.id;
+  state.word = msg.you.role === "citizen" ? msg.word : "";
+  state.wordShown = msg.word || state.wordShown;
+  state.minutes = msg.minutes;
+  state.round = msg.round;
+  state.scores = msg.scores;
+  state.myRole = msg.you.role;
+  if (state.mode === "online") showMyCard();
+}
+
+function showMyCard() {
+  show("reveal");
+  const role = state.myRole;
+  const me = state.players.find((p) => p.id === state.meId);
+  const savedAge = Number(localStorage.getItem("jasoos-age") || 0);
+  const kid = !!(me && me.kid) || localStorage.getItem("jasoos-kid") === "1" || isKid(me && me.age) || isKid(savedAge);
+  const klass = role === "spy" ? "spy" : role === "blank" ? "blank" : "citizen";
+  const title = role === "spy" ? t("youSpy") : role === "blank" ? t("youBlank") : t("youCitizen");
+  const help = role === "spy" ? t("spyHelp") : role === "blank" ? t("blankHelp") : t("citizenHelp");
+  const word = role === "citizen" ? kidBlock(state.word, kid) + meaningLine() : `<div class="word">${role === "spy" ? "؟" : "—"}</div>`;
+  $("revealBox").innerHTML = `
+    <div class="role-card ${klass}">
+      <div class="role-tag">${t("yourTurn")}</div>
+      <div><div class="stamp">${title}</div>${word}<p class="hint">${help}</p></div>
+      <button class="btn" id="ackCard" type="button">${t("hideSelf")}</button>
+    </div>`;
+  $("ackCard").onclick = () => {
+    if (state.mode !== "online" || !net.room) return;
+    const mine = net.room.players.find((p) => p.id === state.meId);
+    if (mine) mine.seen = true;
+    const host = state.isMaster || amStoredHost(state.room);
+    const allSeen = net.room.players.every((p) => p.seen);
+    if (allSeen) {
+      net.room.phase = "discuss";
+      if (!net.room.discussEndsAt) net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
+    }
+    publishRoom(net.room);
+    if (host && net.room.phase === "card") waitCard();
+  };
+  fillKidPhoto();
+  fillMeaning();
+}
+
+function meaningLine() {
+  const fa = state.wordFa || (net.room && net.room.wordFa) || "";
+  if (!fa || fa === state.word) return "";
+  return `<p class="hint">معنی: ${escapeHtml(fa)}</p>`;
+}
+
+async function wikiThumb(word) {
+  const urls = [
+    "https://fa.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(word),
+    "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(word)
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.thumbnail && data.thumbnail.source) return data.thumbnail.source;
+    } catch (e) { /* try next */ }
+  }
+  return "";
+}
+
+async function fillKidPhoto() {
+  return;
+}
+
+async function fillMeaning() {
+  const fa = (net.room && net.room.wordFa) || "";
+  if (!fa) return;
+  const note = $("kidNote");
+  if (note && !note.textContent.includes(fa)) note.textContent = fa + " — " + note.textContent;
+}
+
+async function enrichWord() {
+  if (!state.word || !/[a-z]/i.test(state.word)) return;
+  const fixed = { piano: "پیانو", violin: "ویولن", guitar: "گیتار", drum: "طبل", flute: "فلوت" };
+  const known = fixed[norm(state.word)];
+  if (known) {
+    state.wordFa = known;
+    if (net.room) { net.room.wordFa = known; publishRoom(net.room); }
+    return;
+  }
+  try {
+    const url = "https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=fa&format=json&origin=*&redirects=1&titles=" + encodeURIComponent(state.word);
+    const res = await fetch(url);
+    const data = await res.json();
+    const pages = data.query && data.query.pages || {};
+    const page = Object.values(pages)[0];
+    const fa = page && page.langlinks && page.langlinks[0] && page.langlinks[0]["*"];
+    if (fa && fa.length < 40) {
+      state.wordFa = fa;
+      if (net.room) { net.room.wordFa = fa; publishRoom(net.room); }
+    }
+  } catch (e) { /* skip bad meaning */ }
+}
+
+function switchWord(lang) {
+  if (!state.isMaster || !net.room) return;
+  state.wordLang = lang;
+  net.room.settings.wordLang = lang;
+  net.room.nextLang = lang;
+  publishRoom(net.room);
+  toast(lang === "en" ? "دور بعد انگلیسی است" : "دور بعد فارسی است");
+  const box = $("nextLangLabel");
+  if (box) box.textContent = lang === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی";
+}
+  function isKid(age) {
+  const n = Number(age && age.age != null ? age.age : age);
+  return Number.isFinite(n) && n > 0 && n < 10;
+}
+
+function kidBlock(word, kid) {
+  if (!kid) return `<div class="word">${escapeHtml(word)}</div>`;
+  const info = kidInfo(word);
+  return `<div style="background:#f6efe4;color:#1a120c;border-radius:16px;padding:8px;margin:6px 0"><div id="kidPhoto" style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:12px">${info.art}</div><div class="word" style="color:#1a120c">${escapeHtml(word)}</div><p id="kidNote" style="font-size:13px;line-height:1.35;margin:4px 0 0">${escapeHtml(info.text)}</p></div>`;
+}
+
+const KID_ICONS = {"نان": "🍞", "برنج": "🍚", "پیتزا": "🍕", "کباب": "🍖", "چای": "🍵", "قهوه": "☕", "سیب": "🍎", "موز": "🍌", "شیر": "🥛", "تخممرغ": "🥚", "پنیر": "🧀", "بستنی": "🍦", "سوپ": "🥣", "مرغ": "🍗", "هندوانه": "🍉", "خیار": "🥒", "گوجه": "🍅", "سیبزمینی": "🥔", "ماست": "🥛", "شکلات": "🍫", "اب": "💧", "نمک": "🧂", "قند": "🍬", "عسل": "🍯", "خرما": "🌴", "گربه": "🐱", "سگ": "🐶", "اسب": "🐴", "گاو": "🐄", "گوسفند": "🐑", "ماهی": "🐟", "پرنده": "🐦", "فیل": "🐘", "خرگوش": "🐰", "اردک": "🦆", "بز": "🐐", "کلاغ": "🐦‍⬛", "گنجشک": "🐦", "پروانه": "🦋", "مورچه": "🐜", "زنبور": "🐝", "لاکپشت": "🐢", "قورباغه": "🐸", "خرس": "🐻", "گرگ": "🐺", "روباه": "🦊", "موش": "🐭", "طوطی": "🦜", "پنگوئن": "🐧", "زرافه": "🦒", "کانگورو": "🦘", "دلفین": "🐬", "نهنگ": "🐋", "اختاپوس": "🐙", "عقاب": "🦅", "جغد": "🦉", "اهو": "🦌", "شتر": "🐪", "یوزپلنگ": "🐆", "پلنگ": "🐆", "کرگدن": "🦏", "تمساح": "🐊", "کوالا": "🐨", "لاما": "🦙", "فلامینگو": "🦩", "طاووس": "🦚", "خارپشت": "🦔", "سنجاب": "🐿️", "راکون": "🦝", "گورخر": "🦓", "شامپانزه": "🐒", "قو": "🦢", "مارمولک": "🦎", "مدرسه": "🏫", "بیمارستان": "🏥", "بازار": "🏪", "پارک": "🌳", "خانه": "🏠", "رستوران": "🍽️", "فرودگاه": "✈️", "سینما": "🎬", "کتابخانه": "📚", "مسجد": "🕌", "استخر": "🏊", "ساحل": "🏖️", "کوه": "⛰️", "جنگل": "🌲", "ایستگاه": "🚉", "بانک": "🏦", "داروخانه": "💊", "نانوایی": "🥖", "زمینفوتبال": "⚽", "هتل": "🏨", "موزه": "🖼️", "دانشگاه": "🎓", "اداره": "🏢", "خیابان": "🛣️", "روستا": "🏡", "فانوسدریایی": "🚨", "اکواریوم": "🐠", "شهربازی": "🎡", "پیستاسکی": "⛷️", "گلخانه": "🪴", "معدن": "⛏️", "بندر": "⚓", "جزیره": "🏝️", "واحه": "🌴", "غار": "🕳️", "اتشفشان": "🌋", "قطب": "🧊", "صحرا": "🏜️", "مترو": "🚇", "ازمایشگاه": "🔬", "معلم": "👩‍🏫", "پزشک": "🩺", "راننده": "🚗", "اشپز": "👨‍🍳", "پلیس": "👮", "اتشنشان": "🚒", "کشاورز": "🚜", "مهندس": "👷", "پرستار": "💉", "نانوا": "🥖", "فروشنده": "🛒", "خلبان": "✈️", "نقاش": "🎨", "خواننده": "🎤", "بازیکن": "🏅", "قاضی": "⚖️", "خبرنگار": "📰", "مکانیک": "🔧", "خیاط": "🧵", "باغبان": "🌱", "دندانپزشک": "🦷", "داروساز": "💊", "معمار": "📐", "بازیگر": "🎭", "نویسنده": "✍️", "غواص": "🤿", "کتابدار": "📚", "دامپزشک": "🐾", "کاراگاه": "🕵️", "ملوان": "⚓", "قصاب": "🔪", "صندلی": "🪑", "میز": "🪵", "کتاب": "📖", "گوشی": "📱", "کلید": "🔑", "ساعت": "⌚", "عینک": "👓", "کیف": "👜", "کفش": "👟", "چتر": "☂️", "لامپ": "💡", "اینه": "🪞", "قاشق": "🥄", "چنگال": "🍴", "بشقاب": "🍽️", "لیوان": "🥛", "خودکار": "🖊️", "دفتر": "📓", "توپ": "⚽", "دوچرخه": "🚲", "تلویزیون": "📺", "یخچال": "🧊", "در": "🚪", "پنجره": "🪟", "تخت": "🛏️", "قطبنما": "🧭", "تلسکوپ": "🔭", "میکروسکوپ": "🔬", "چمدان": "🧳", "کوله": "🎒", "نردبان": "🪜", "قیچی": "✂️", "سوزن": "🪡", "نخ": "🧵", "شمع": "🕯️", "فندک": "🔥", "رادیو": "📻", "ویولن": "🎻", "پیانو": "🎹", "طبل": "🥁", "بادکنک": "🎈", "بادبادک": "🪁", "نقشه": "🗺️", "لنگر": "⚓", "فوتبال": "⚽", "والیبال": "🏐", "بسکتبال": "🏀", "شنا": "🏊", "دو": "🏃", "تنیس": "🎾", "کشتی": "🤼", "دوچرخهسواری": "🚴", "پیادهروی": "🚶", "اسکی": "⛷️", "بوکس": "🥊", "بدمینتون": "🏸", "پینگپنگ": "🏓", "هندبال": "🤾", "فوتسال": "⚽", "ژیمناستیک": "🤸", "یوگا": "🧘", "کوهنوردی": "🧗", "اسبسواری": "🏇", "اسکیت": "⛸️", "گلف": "⛳", "بیسبال": "⚾", "هاکی": "🏒", "شیرجه": "🤿", "وزنه": "🏋️", "کاراته": "🥋", "جودو": "🥋", "تکواندو": "🥋", "دارت": "🎯", "بیلیارد": "🎱", "بولینگ": "🎳", "قایقرانی": "🚣", "بادبانی": "⛵", "ماراتن": "🏃", "تیراندازی": "🎯", "درخت": "🌳", "گل": "🌸", "خورشید": "☀️", "ماه": "🌙", "ستاره": "⭐", "باران": "🌧️", "برف": "❄️", "ابر": "☁️", "رود": "🏞️", "دریا": "🌊", "سنگ": "🪨", "شن": "🏖️", "برگ": "🍃", "چمن": "🌿", "اتش": "🔥", "باد": "💨", "رعد": "⚡", "رنگینکمان": "🌈", "بهار": "🌷", "تابستان": "🌞", "پاییز": "🍂", "زمستان": "⛄", "ابشار": "💦", "خسوف": "🌑", "کسوف": "🌒", "گردباد": "🌪️", "سونامی": "🌊", "زلزله": "🌋", "کهکشان": "🌌", "دنبالهدار": "☄️", "شهاب": "💫", "مه": "🌫️", "تگرگ": "🧊", "صاعقه": "⚡", "لپتاپ": "💻", "اینترنت": "🌐", "ربات": "🤖", "دوربین": "📷", "هدفون": "🎧", "شارژر": "🔌", "موس": "🖱️", "کیبورد": "⌨️", "اسپیکر": "🔊", "تبلت": "📱", "باتری": "🔋", "فلش": "💾", "پرینتر": "🖨️", "ماهواره": "🛰️", "پهپاد": "🛸", "اپ": "📲", "رمز": "🔐", "صفحه": "🖥️", "دکمه": "🔘", "کابل": "🔌", "جیپیاس": "📍", "رادار": "📡", "لیزر": "🔴", "پیراهن": "👕", "شلوار": "👖", "کلاه": "🎩", "کت": "🧥", "دامن": "👗", "روسری": "🧣", "جوراب": "🧦", "کمربند": "🧷", "ژاکت": "🧥", "تیشرت": "👕", "مانتو": "🧥", "شال": "🧣", "دستکش": "🧤", "عینکافتابی": "🕶️", "انگشتر": "💍", "گردنبند": "📿", "چادر": "⛺", "لباسشنا": "🩱", "کراوات": "👔", "پاپیون": "🎀", "بارانی": "🧥", "هودی": "👕", "چکمه": "👢", "صندل": "🩴", "ماسک": "😷", "فیلم": "🎬", "اهنگ": "🎵", "نقاشی": "🖼️", "تئاتر": "🎭", "رقص": "💃", "عکس": "📸", "داستان": "📖", "شعر": "📝", "کارتون": "📺", "سریال": "📺", "کنسرت": "🎤", "جشن": "🎉", "عید": "🎉", "نوروز": "🌱", "یلدا": "🍉", "سفره": "🍽️", "هدیه": "🎁", "بازی": "🎮", "جوک": "😄", "قهرمان": "🦸", "هیولا": "👹", "تار": "🎸", "سهتار": "🎸", "دف": "🥁", "سنتور": "🎹", "شاهنامه": "📚", "حافظ": "📖"};
+const KID_TEXT = {"بز": "بز حیوانی است با شاخ و ریش.", "وزنه": "وزنه آهن سنگینی است که بلند می‌کنند.", "هدیه": "هدیه جعبه‌ای است که به کسی می‌دهی.", "عید": "عید روز جشن است.", "دو": "دو یعنی تند دویدن.", "کیبورد": "کیبورد دکمه‌های کامپیوتر است.", "باتری": "باتری به وسیله برق می‌دهد.", "نقاش": "نقاش با قلم‌مو رنگ می‌زند.", "پروانه": "پروانه حشره‌ای است با بال‌های رنگی."};
+
+function kidInfo(word) {
+  const key = norm(word);
+  const icon = KID_ICONS[key];
+  const text = KID_TEXT[key] || (icon ? "شکل بالا همان کلمه است." : "برای این کلمه شکل دقیق نداریم. با یک مثال ساده بگو.");
+  const art = icon ? `<div style="font-size:84px;line-height:1">${icon}</div>` : `<div style="font-size:40px;font-weight:800;color:#1a120c">${escapeHtml(word)}</div>`;
+  return { text, art };
+}
+
+function kidArt(kind) {
+  const box = (inner) => `<svg width="170" height="150" viewBox="0 0 120 100">${inner}</svg>`;
+  const arts = {
+    party: box(`<circle cx="36" cy="58" r="8" fill="#c8453a"/><circle cx="60" cy="42" r="8" fill="#e2b56a"/><circle cx="84" cy="58" r="8" fill="#6aa0c8"/><path d="M28 72h64" stroke="#e2b56a" stroke-width="4"/>`),
+    run: box(`<circle cx="78" cy="24" r="9" fill="#e2b56a"/><path d="M72 36l-18 16 16 4-8 20M64 50l16 8 8 18M56 52l-16 8" stroke="#1a120c" stroke-width="5" fill="none" stroke-linecap="round"/>`),
+    paint: box(`<rect x="18" y="62" width="70" height="22" rx="3" fill="#f6efe4" stroke="#1a120c"/><path d="M28 62c8-28 28-28 36 0" fill="#c8453a"/><rect x="88" y="28" width="8" height="40" rx="3" fill="#e2b56a"/>`),
+    keys: box(`<rect x="16" y="36" width="88" height="40" rx="6" fill="#f6efe4" stroke="#1a120c"/><g fill="#1a120c">${[0,1,2,3,4,5].map((i)=>`<rect x="${22+i*13}" y="44" width="10" height="8" rx="1"/>`).join("")}${[0,1,2,3,4].map((i)=>`<rect x="${28+i*13}" y="56" width="10" height="8" rx="1"/>`).join("")}</g>`),
+    battery: box(`<rect x="28" y="34" width="64" height="36" rx="6" fill="#3d7a4a"/><rect x="92" y="44" width="8" height="16" fill="#1a120c"/><rect x="36" y="44" width="28" height="16" fill="#e2b56a"/>`),
+    bread: box(`<ellipse cx="60" cy="58" rx="36" ry="18" fill="#e2b56a"/><path d="M30 58c8-16 52-16 60 0" fill="#c8453a"/>`),
+    apple: box(`<circle cx="60" cy="58" r="24" fill="#c8453a"/><rect x="57" y="28" width="6" height="12" fill="#6b8f71"/>`),
+    banana: box(`<path d="M28 40c20 8 40 28 48 46-16 4-36-10-48-30z" fill="#e2b56a"/>`),
+    cat: box(`<ellipse cx="60" cy="64" rx="26" ry="18" fill="#e2b56a"/><path d="M36 48l8-18 10 14M84 48l-8-18-10 14" fill="#e2b56a"/><circle cx="50" cy="62" r="3" fill="#1a120c"/><circle cx="70" cy="62" r="3" fill="#1a120c"/>`),
+    dog: box(`<ellipse cx="58" cy="64" rx="26" ry="16" fill="#c49a6c"/><circle cx="86" cy="52" r="12" fill="#c49a6c"/><circle cx="90" cy="50" r="2" fill="#1a120c"/>`),
+    fish: box(`<ellipse cx="58" cy="54" rx="28" ry="14" fill="#6aa0c8"/><path d="M86 54l18-12v24z" fill="#6aa0c8"/><circle cx="42" cy="52" r="2" fill="#1a120c"/>`),
+    school: box(`<path d="M60 18l34 20H26z" fill="#c8453a"/><rect x="34" y="40" width="52" height="36" fill="#f6efe4"/><rect x="52" y="56" width="16" height="20" fill="#e2b56a"/>`),
+    house: box(`<path d="M60 18l36 24H24z" fill="#e2b56a"/><rect x="34" y="42" width="52" height="36" fill="#f6efe4"/><rect x="52" y="56" width="14" height="22" fill="#c8453a"/>`),
+    ball: box(`<circle cx="60" cy="52" r="26" fill="#f6efe4" stroke="#1a120c" stroke-width="4"/><path d="M60 26v52M34 52h52" stroke="#1a120c" stroke-width="2" fill="none"/>`),
+    sun: box(`<circle cx="60" cy="52" r="16" fill="#e2b56a"/><g stroke="#e2b56a" stroke-width="4"><path d="M60 20v10M60 74v10M28 52h10M82 52h10"/></g>`),
+    moon: box(`<path d="M68 22a28 28 0 1 0 0 56 22 22 0 1 1 0-56z" fill="#e2b56a"/>`),
+    book: box(`<path d="M18 30h40v52H18zM62 30h40v52H62z" fill="#c8453a"/>`),
+    car: box(`<rect x="16" y="48" width="88" height="24" rx="6" fill="#c8453a"/><circle cx="34" cy="74" r="7" fill="#1a120c"/><circle cx="86" cy="74" r="7" fill="#1a120c"/>`),
+    food: box(`<ellipse cx="60" cy="62" rx="34" ry="14" fill="#e2b56a"/><ellipse cx="60" cy="54" rx="34" ry="14" fill="#c8453a"/>`),
+    animal: box(`<ellipse cx="60" cy="62" rx="28" ry="18" fill="#e2b56a"/><circle cx="42" cy="40" r="9" fill="#e2b56a"/><circle cx="78" cy="40" r="9" fill="#e2b56a"/>`),
+    sport: box(`<circle cx="60" cy="52" r="26" fill="#f6efe4" stroke="#1a120c" stroke-width="4"/>`),
+    job: box(`<circle cx="60" cy="34" r="14" fill="#e2b56a"/><path d="M28 88c6-22 18-30 32-30s26 8 32 30" fill="#f6efe4"/>`),
+    object: box(`<rect x="26" y="36" width="68" height="34" rx="8" fill="#e2b56a"/><circle cx="40" cy="78" r="6" fill="#1a120c"/><circle cx="80" cy="78" r="6" fill="#1a120c"/>`)
+  };
+  return arts[kind] || arts.object;
+}
+
+function isHardWord(word) {
+  const langs = ["fa", "en"];
+  for (const lang of langs) {
+    for (const cat of Object.keys(window.WORD_BANK[lang])) {
+      if ((window.WORD_BANK[lang][cat].hard || []).some((w) => norm(w) === norm(word))) return true;
+    }
+  }
+  return false;
+}
+
+function kidSvg(cat) {
+  const shapes = {
+    animal: `<svg width="150" height="150" viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><ellipse cx="60" cy="70" rx="28" ry="22" fill="#e2b56a"/><circle cx="42" cy="48" r="10" fill="#e2b56a"/><circle cx="78" cy="48" r="10" fill="#e2b56a"/><circle cx="50" cy="66" r="4" fill="#1a120c"/><circle cx="70" cy="66" r="4" fill="#1a120c"/><ellipse cx="60" cy="78" rx="6" ry="4" fill="#1a120c"/></svg>`,
+    food: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><ellipse cx="60" cy="72" rx="34" ry="16" fill="#e2b56a"/><ellipse cx="60" cy="64" rx="34" ry="16" fill="#c8453a"/><circle cx="48" cy="60" r="4" fill="#f6efe4"/><circle cx="66" cy="58" r="4" fill="#f6efe4"/><circle cx="74" cy="68" r="3" fill="#f6efe4"/></svg>`,
+    place: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><path d="M60 22l28 24H32z" fill="#e2b56a"/><rect x="36" y="46" width="48" height="40" fill="#f6efe4"/><rect x="52" y="62" width="16" height="24" fill="#1a120c"/></svg>`,
+    job: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><circle cx="60" cy="46" r="16" fill="#e2b56a"/><path d="M28 98c6-22 18-32 32-32s26 10 32 32" fill="#f6efe4"/></svg>`,
+    sport: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><circle cx="60" cy="60" r="28" fill="#f6efe4"/><path d="M60 32v56M32 60h56" stroke="#1a120c" stroke-width="3"/></svg>`,
+    nature: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><circle cx="60" cy="52" r="22" fill="#e2b56a"/><rect x="56" y="74" width="8" height="22" fill="#7d9a72"/></svg>`,
+    object: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><rect x="28" y="40" width="64" height="40" rx="8" fill="#e2b56a"/><circle cx="42" cy="84" r="6" fill="#f6efe4"/><circle cx="78" cy="84" r="6" fill="#f6efe4"/></svg>`
+  };
+  return shapes[cat] || shapes.object;
+}
+
+function categoryOf(word) {
+  const langs = ["fa", "en"];
+  for (const lang of langs) {
+    for (const cat of Object.keys(window.WORD_BANK[lang])) {
+      for (const level of Object.keys(window.WORD_BANK[lang][cat])) {
+        if (window.WORD_BANK[lang][cat][level].some((w) => norm(w) === norm(word))) return cat;
+      }
+    }
+  }
+  return "";
+}
+
+function beginDiscuss() {
+  if (state.mode === "online" && net.room && net.room.discussEndsAt) {
+    show("discuss");
+    armTimer(net.room.discussEndsAt);
+    paintDiscuss();
+    return;
+  }
+  const ends = Date.now() + state.minutes * 60000;
+  state.left = state.minutes * 60;
+  show("discuss");
+  paintDiscuss();
+  armTimer(ends);
+}
+
+function applyPendingGuess() {
+  if (!state.pendingSpyOut) return null;
+  const bad = state.players.find((p) => p.id === state.pendingSpyOut && p.alive);
+  state.pendingSpyOut = "";
+  if (!bad) return null;
+  bad.alive = false;
+  state.lastElim = { name: bad.name, role: "spy" };
+  return bad;
+}
+
+function endRoundNow() {
+  if (state.mode === "online" && net.room) {
+    state.votes = net.room.votes || {};
+    state.players = net.room.players;
+  }
+  finishVotes();
+}
+
+function returnToTalk() {
+  if (state.mode === "online" && net.room) {
+    net.room.phase = "discuss";
+    publishRoom(net.room);
+    return;
+  }
+  beginDiscuss();
+}
+
+function paintTimer() {
+  const m = String(Math.max(0, Math.floor(state.left / 60))).padStart(2, "0");
+  const s = String(Math.max(0, state.left % 60)).padStart(2, "0");
+  $("timer").textContent = m + ":" + s;
+  $("timer").classList.toggle("warn", state.left < 30);
+}
+
+function alivePublic() {
+  return state.players.filter((p) => p.alive).map((p) => ({ id: p.id, name: p.name }));
+}
+
+function paintDiscuss() {
+  paintTimer();
+  $("scC").textContent = state.scores.citizen;
+  $("scS").textContent = state.scores.spy;
+  $("aliveList").innerHTML = state.players.filter((p) => p.alive).map((p) =>
+    `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b></span><span style="color:var(--muted)">${t("round")} ${state.round}</span></div>`
+  ).join("");
+  const me = state.players.find((p) => p.id === state.meId);
+  $("openGuess").style.display = me && me.role === "spy" && me.alive && !state.guessUsed ? "block" : "none";
+  if (state.mode === "pass") $("openGuess").style.display = state.guessUsed ? "none" : "block";
+  const alive = state.players.filter((p) => p.alive);
+  const allIn = alive.length && alive.every((p) => (state.votes || {})[p.id]);
+  const end = $("endRound");
+  if (end) end.style.display = allIn && (state.mode === "pass" || state.isMaster) ? "block" : "none";
+  const faBtn = $("toFa");
+  const enBtn = $("toEn");
+  if (faBtn) faBtn.style.display = "none";
+  if (enBtn) enBtn.style.display = "none";
+}
+
+function openVote() {
+  clearInterval(state.timer);
+  state.selectedVote = "";
+  show("vote");
+  const voterId = state.mode === "pass" ? state.passVoter : state.meId;
+  const alive = state.players.filter((p) => p.alive && p.id !== voterId);
+  $("voteHint").textContent = state.mode === "pass" ? t("giveTo") + " " + ((state.players.find((p) => p.id === voterId) || {}).name || "") : (state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی" : "You cannot vote for yourself");
+  $("voteList").innerHTML = alive.map((p) =>
+    `<button class="list-btn" type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`
+  ).join("");
+  $("voteList").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => {
+      state.selectedVote = b.dataset.id;
+      $("voteList").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+  });
+  if (state.mode === "online" && state.isMaster) broadcast({ type: "phase", phase: "vote", players: alivePublic() });
+}
+
+function castVote() {
+  if (!state.selectedVote) return toast(state.ui === "fa" ? "اول یک اسم را انتخاب کن" : "Pick a name first");
+  const voterId = state.mode === "pass" ? state.passVoter : state.meId;
+  if (state.selectedVote === voterId) return toast(state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی" : "You cannot vote for yourself");
+  if (state.mode === "pass") {
+    state.votes[state.passVoter] = state.selectedVote;
+    passVoteNext();
+    return;
+  }
+  if (!net.room) return;
+  net.room.votes[state.meId] = state.selectedVote;
+  state.votes = net.room.votes;
+  const alive = net.room.players.filter((p) => p.alive);
+  const allIn = alive.every((p) => net.room.votes[p.id]);
+  net.room.allVoted = allIn;
+  publishRoom(net.room);
+  toast(state.ui === "fa" ? "رأی ثبت شد" : "Vote saved");
+  const end = $("endRoundVote");
+  if (end) end.style.display = allIn && state.isMaster ? "block" : "none";
+  if (allIn) $("voteHint").textContent = state.ui === "fa" ? "رأی‌ها کامل شد. مستر می‌تواند دور را تمام کند." : "All votes are in. The host can end the round.";
+}
+
+function passVoteNext() {
+  const alive = state.players.filter((p) => p.alive);
+  const pending = alive.find((p) => !state.votes[p.id]);
+  if (!pending) return finishVotes();
+  state.passVoter = pending.id;
+  openVote();
+}
+
+function maybeFinishVotes() {
+  const alive = state.players.filter((p) => p.alive);
+  if (alive.every((p) => state.votes[p.id])) finishVotes();
+}
+
+function finishVotes() {
+  if (state.pendingSpyOut) {
+    const bad = state.players.find((p) => p.id === state.pendingSpyOut && p.alive);
+    state.pendingSpyOut = "";
+    if (bad) {
+      bad.alive = false;
+      state.lastElim = { name: bad.name, role: "spy" };
+      const win = checkWin();
+      showResult({ tie: false, elim: state.lastElim, win, reason: "lateGuess" });
+      return;
+    }
+  }
+  const tally = {};
+  Object.values(state.votes).forEach((id) => { tally[id] = (tally[id] || 0) + 1; });
+  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  if (!ranked.length || (ranked[1] && ranked[0][1] === ranked[1][1])) {
+    if (state.mode === "online" && net.room) {
+      net.room.phase = "result";
+      net.room.lastElim = null;
+      net.room.win = "";
+      net.room.votes = {};
+      publishRoom(net.room);
+    }
+    showResult({ tie: true });
+    return;
+  }
+  const id = ranked[0][0];
+  const p = state.players.find((x) => x.id === id);
+  p.alive = false;
+  state.lastElim = { name: p.name, role: p.role };
+  const win = checkWin();
+  showResult({ tie: false, elim: state.lastElim, win });
+  if (state.mode === "online" && net.room) {
+    net.room.players = state.players;
+    net.room.lastElim = state.lastElim;
+    net.room.win = win;
+    net.room.scores = state.scores;
+    net.room.phase = "result";
+    net.room.votes = state.votes;
+    publishRoom(net.room);
+  }
+}
+
+function checkWin() {
+  const alive = state.players.filter((p) => p.alive);
+  const spies = alive.filter((p) => p.role === "spy").length;
+  const citizens = alive.filter((p) => p.role === "citizen").length;
+  if (spies === 0) {
+    state.scores.citizen += 1;
+    return "citizen";
+  }
+  if (spies >= citizens) {
+    state.scores.spy += 1;
+    return "spy";
+  }
+  return "";
+}
+
+function showResult(info) {
+  show("result");
+  if (state.mode === "online" && !state.isMaster && info.players) {
+    state.players = info.players;
+    if (info.scores) state.scores = info.scores;
+    if (info.word) state.word = info.word;
+  }
+  const roleName = (r) => r === "spy" ? t("spy") : r === "blank" ? t("blankRole") : t("citizen");
+  let html = "";
+  if (info.tie) html += `<h2>${t("tie")}</h2>`;
+  else if (info.reason === "guess") html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${t("spiesWin")}</p>`;
+  else if (info.reason === "lateGuess") html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${t("spy")} · ${t("out")}</p><p>${state.ui === "fa" ? "حدس کلمه‌اش غلط بود." : "The word guess was wrong."}</p>`;
+  else html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${roleName(info.elim.role)} · ${t("out")}</p>`;
+  if (info.win) {
+    html += `<h3 style="margin-top:18px">${info.win === "citizen" ? t("citizensWin") : t("spiesWin")}</h3>`;
+    html += `<p>${t("wordWas")}: <b>${escapeHtml(state.word || state.wordShown)}</b>${state.wordFa ? " · " + escapeHtml(state.wordFa) : ""}</p>`;
+    html += `<div class="stack" style="margin-top:12px">${state.isMaster ? `<p id="nextLangLabel" class="hint">${(net.room && net.room.nextLang) === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی"}</p><div class="row"><button class="btn ghost" id="pickFa" type="button">دور بعد فارسی</button><button class="btn ghost" id="pickEn" type="button">دور بعد انگلیسی</button></div>` : ""}<button class="btn" id="nextRound">${t("nextRound")}</button><button class="btn ghost" id="toHome">${t("home")}</button></div>`;
+  } else {
+    html += `<div class="stack" style="margin-top:12px"><button class="btn" id="continueTalk">${t("beginTalk")}</button></div>`;
+  }
+  $("resultBox").innerHTML = html;
+  const nr = $("nextRound");
+  if (nr) nr.onclick = () => newRound();
+  const pickFa = $("pickFa");
+  const pickEn = $("pickEn");
+  if (pickFa) pickFa.onclick = () => switchWord("fa");
+  if (pickEn) pickEn.onclick = () => switchWord("en");
+  const th = $("toHome");
+  if (th) th.onclick = () => location.href = location.pathname;
+  const ct = $("continueTalk");
+  if (ct) ct.onclick = () => {
+    state.votes = {};
+    if (state.mode === "online" && net.room) {
+      net.room.phase = "discuss";
+      net.room.votes = {};
+      net.room.win = "";
+      net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
+      publishRoom(net.room);
+      return;
+    }
+    beginDiscuss();
+  };
+}
+
+function newRound() {
+  state.round += 1;
+  state.guessUsed = false;
+  state.guessLog = [];
+  state.pendingSpyOut = "";
+  if (state.mode === "pass") {
+    deal(state.players.map((p) => ({ id: p.id, name: p.name, age: p.age, kid: p.kid })));
+    state.revealAt = 0;
+    showPassCover();
+  } else if (net.room) {
+    net.room.round = state.round;
+    net.room.used = state.used;
+    startOnline();
+  }
+}
+
+function norm(s) {
+  return String(s || "").trim().toLowerCase()
+    .replace(/[آأإٱ]/g, "ا")
+    .replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/ة/g, "ه")
+    .replace(/‌/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function sameWord(guess, answer) {
+  const a = norm(guess);
+  const b = norm(answer);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const fold = (s) => s.replace(/[صث]/g, "س").replace(/ط/g, "ت").replace(/[ذضظ]/g, "ز").replace(/ح/g, "ه").replace(/غ/g, "ق");
+  if (fold(a) === fold(b)) return true;
+  const limit = Math.max(a.length, b.length) >= 8 ? 2 : 1;
+  return editDistance(a, b) <= limit;
+}
+
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i - 1;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
+function submitGuess() {
+  const raw = $("guessInput").value;
+  const guess = norm(raw);
+  const answer = norm(state.word || state.wordShown);
+  const who = state.mode === "pass" ? state.guessWho : state.meId;
+  $("guessModal").classList.remove("on");
+  if (!guess || !who) return toast(state.ui === "fa" ? "اول اسم خودت را انتخاب کن" : "Pick your name first");
+  if (state.guessUsed) return toast(state.ui === "fa" ? "این دور فقط یک حدس دارد" : "Only one guess this round");
+  const guesser = state.players.find((p) => p.id === who) || (net.room && net.room.players.find((p) => p.id === who));
+  state.guessUsed = true;
+  state.guessLog = [{ name: guesser ? guesser.name : "", word: raw, spy: !!(guesser && guesser.role === "spy") }];
+  const correct = sameWord(guess, answer);
+  if (guesser && guesser.role === "spy" && correct) {
+    if (state.mode === "online" && net.room) {
+      net.room.scores.spy += 1;
+      net.room.win = "spy";
+      net.room.reason = "guess";
+      net.room.phase = "result";
+      net.room.lastElim = { name: guesser.name, role: "spy" };
+      publishRoom(net.room);
+      return;
+    }
+    resolveGuess(who, true);
+    return;
+  }
+  toast(state.ui === "fa" ? "حدس ثبت شد. این دور دیگر حدس ندارد." : "Guess saved. No more guesses this round.");
+  if (guesser && guesser.role === "spy") state.pendingSpyOut = guesser.id;
+  return;
+}
+
+function resolveGuess(id, ok) {
+  const p = state.players.find((x) => x.id === id);
+  if (ok) {
+    state.scores.spy += 1;
+    showResult({ tie: false, elim: { name: p ? p.name : t("spy"), role: "spy" }, win: "spy", reason: "guess" });
+    if (state.mode === "online" && state.isMaster) {
+      broadcast({ type: "result", tie: false, elim: { name: p.name, role: "spy" }, win: "spy", word: state.word, scores: state.scores, players: state.players });
+    }
+    return;
+  }
+  if (p) p.alive = false;
+  state.lastElim = { name: p.name, role: "spy" };
+  const win = checkWin();
+  showResult({ tie: false, elim: state.lastElim, win });
+}
+
+function nameRows() {
+  $("nameList").innerHTML = "";
+  state.players.forEach((p, i) => {
+    const wrap = document.createElement("div");
+    wrap.className = "card";
+    wrap.innerHTML = `<div class="row"><input type="text" maxlength="18" value="${escapeHtml(p.name)}" data-i="${i}" placeholder="${state.ui === "fa" ? "اسم" : "Name"}" /><button class="btn small ghost" type="button" data-x="${i}">×</button></div><label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px"><input type="checkbox" data-kid="${i}" ${p.kid ? "checked" : ""} style="width:auto" /> ${state.ui === "fa" ? "شکل و توضیح" : "Picture and hint"}</label>`;
+    $("nameList").appendChild(wrap);
+  });
+  $("nameList").querySelectorAll("input[data-i]").forEach((inp) => {
+    inp.oninput = () => { state.players[inp.dataset.i].name = inp.value; paintPassHint(); };
+  });
+  $("nameList").querySelectorAll("input[data-age]").forEach((inp) => {
+    inp.oninput = () => { state.players[inp.dataset.age].age = Number(inp.value) || 0; };
+  });
+  $("nameList").querySelectorAll("input[data-kid]").forEach((inp) => {
+    inp.onchange = () => { state.players[inp.dataset.kid].kid = inp.checked; };
+  });
+  $("nameList").querySelectorAll("[data-x]").forEach((b) => {
+    b.onclick = () => {
+      state.players.splice(Number(b.dataset.x), 1);
+      nameRows();
+    };
+  });
+  paintPassHint();
+}
+
+function paintPassHint() {
+  const n = state.players.filter((p) => p.name.trim()).length;
+  const spies = spyTarget(Math.max(n, 3));
+  $("passHint").textContent = n + " · " + t("spy") + " " + (n >= 3 ? spies : "—");
+}
+
+function showPassCover() {
+  show("reveal");
+  const p = state.players[state.revealAt];
+  if (!p) return;
+  $("revealBox").innerHTML = `
+    <div class="cover">
+      <div>
+        <p class="kicker">${state.revealAt + 1} / ${state.players.length}</p>
+        <h2>${t("giveTo")}</h2>
+        <div class="word">${escapeHtml(p.name)}</div>
+        <button class="btn" id="showCard" type="button">${t("ready")}</button>
+      </div>
+    </div>`;
+  $("showCard").onclick = () => showPassCard(p);
+}
+
+function showPassCard(p) {
+  const klass = p.role === "spy" ? "spy" : p.role === "blank" ? "blank" : "citizen";
+  const title = p.role === "spy" ? t("youSpy") : p.role === "blank" ? t("youBlank") : t("youCitizen");
+  const help = p.role === "spy" ? t("spyHelp") : p.role === "blank" ? t("blankHelp") : t("citizenHelp");
+  const word = p.role === "citizen" ? "" : (p.role === "spy" ? "؟" : "—");
+  const body = p.role === "citizen" ? kidBlock(state.word, !!(p.kid || isKid(p.age))) + meaningLine() : `<div class="word">${escapeHtml(word)}</div>`;
+  $("revealBox").innerHTML = `
+    <div class="role-card ${klass}">
+      <div class="role-tag">${escapeHtml(p.name)}</div>
+      <div><div class="stamp">${title}</div>${body}<p class="hint">${help}</p></div>
+      <button class="btn" id="hideCard" type="button">${t("hide")}</button>
+    </div>`;
+  $("hideCard").onclick = () => {
+    state.revealAt += 1;
+    if (state.revealAt >= state.players.length) {
+      $("revealBox").innerHTML = `<div class="cover"><h2>${t("allSeen")}</h2><button class="btn" id="goTalk">${t("beginTalk")}</button></div>`;
+      $("goTalk").onclick = () => beginDiscuss();
+    } else showPassCover();
+  };
+  fillKidPhoto();
+  fillMeaning();
+}
+
+function hostRoom() { return window.hostRoomShared(); }
+function joinRoom(code) { return window.joinRoomShared(code); }
+
+function readAge(value) {
+  const n = Number(value);
+  if (!value || Number.isNaN(n) || n <= 0) return null;
+  return Math.min(99, Math.round(n));
+}
+  function readSetup() {
+  state.wordLang = document.querySelector("#wordLang button.on").dataset.v;
+  state.level = document.querySelector("#levelSeg button.on").dataset.v;
+  state.spyMode = document.querySelector("#spySeg button.on").dataset.v;
+  state.minutes = Math.max(1, Number($("minutes").value) || 6);
+  state.blank = $("blankRole").checked;
+}
+
+function bind() {
+  $("uiFa").onclick = () => { state.ui = "fa"; applyUi(); };
+  $("uiEn").onclick = () => { state.ui = "en"; applyUi(); };
+  $("goOnline").onclick = () => { state.mode = "online"; state.afterSetup = "host"; show("setup"); };
+  $("goJoin").onclick = () => { state.mode = "online"; state.afterSetup = "join"; show("setup"); };
+  $("goPass").onclick = () => { state.mode = "pass"; state.afterSetup = "pass"; show("setup"); };
+  $("goRules").onclick = () => $("rulesModal").classList.add("on");
+  $("closeRules").onclick = () => $("rulesModal").classList.remove("on");
+  $("setupBack").onclick = () => show("home");
+  $("setupNext").onclick = () => {
+    readSetup();
+    if (state.afterSetup === "pass") {
+      const me = $("masterName").value.trim() || (state.ui === "fa" ? "بازیکن ۱" : "Player 1");
+      state.players = [1, 2, 3].map((n) => ({ id: "p" + n, name: n === 1 ? me : "" }));
+      nameRows();
+      show("passNames");
+    } else if (state.afterSetup === "host") hostRoom();
+    else {
+      const presetCode = new URLSearchParams(location.search).get("room");
+      const code = presetCode || prompt(state.ui === "fa" ? "کد اتاق" : "Room code", "");
+      if (code) joinRoom(code.trim());
+    }
+  };
+  document.querySelectorAll("#wordLang button, #levelSeg button, #spySeg button").forEach((b) => {
+    b.onclick = () => {
+      b.parentElement.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      if (b.parentElement.id === "spySeg") $("spyManual").style.display = b.dataset.v === "manual" ? "block" : "none";
+    };
+  });
+  $("addName").onclick = () => {
+    state.players.push({ id: "p" + Date.now(), name: "" });
+    nameRows();
+  };
+  $("passBack").onclick = () => show("setup");
+  $("startPass").onclick = async () => {
+    state.players = state.players.filter((p) => p.name.trim()).map((p, i) => ({
+      id: "p" + i,
+      name: p.name.trim(),
+      age: Number(p.age) || 0,
+      kid: !!(p.kid || (Number(p.age) > 0 && Number(p.age) < 10))
+    }));
+    if (state.players.length < 3) return toast(t("need3"));
+    state.mode = "pass";
+    state.meId = state.players[0].id;
+    deal(state.players);
+    state.revealAt = 0;
+    await enrichWord();
+    showPassCover();
+  };
+  $("copyLink").onclick = async () => {
+    try { await navigator.clipboard.writeText(roomLink()); toast(t("copied")); } catch (e) { toast(roomLink()); }
+  };
+  $("shareLink").onclick = async () => {
+    const link = roomLink();
+    if (navigator.share) navigator.share({ title: "جاسوس", text: state.room, url: link });
+    else {
+      try { await navigator.clipboard.writeText(link); toast(t("copied")); } catch (e) { toast(link); }
+    }
+  };
+  $("startOnline").onclick = startOnline;
+  $("leaveRoom").onclick = () => location.href = location.pathname;
+  $("toVote").onclick = () => {
+    const dropped = applyPendingGuess();
+    if (dropped) {
+      const win = checkWin();
+      if (win) {
+        showResult({ tie: false, elim: state.lastElim, win, reason: "lateGuess" });
+        return;
+      }
+      toast(state.ui === "fa" ? dropped.name + " به‌خاطر حدس غلط در رأی نیست." : dropped.name + " is out for a wrong guess.");
+    }
+    state.votes = {};
+    if (state.mode === "pass") {
+      openVote();
+      passVoteNext();
+      return;
+    }
+    if (!net.room) return;
+    net.room.phase = "vote";
+    net.room.votes = {};
+    publishRoom(net.room);
+  };
+  if ($("toFa")) $("toFa").onclick = () => switchWord("fa");
+  if ($("toEn")) $("toEn").onclick = () => switchWord("en");
+  $("castVote").onclick = castVote;
+  $("voteBack").onclick = () => returnToTalk();
+  $("endRound").onclick = endRoundNow;
+  $("endRoundVote").onclick = endRoundNow;
+  $("openGuess").onclick = () => {
+    if (state.guessUsed) return toast(state.ui === "fa" ? "این دور فقط یک حدس دارد" : "Only one guess this round");
+    const box = $("guessWhoBox");
+    box.innerHTML = "";
+    state.guessWho = "";
+    if (state.mode === "pass") {
+      const alive = state.players.filter((p) => p.alive);
+      $("guessLead").textContent = state.ui === "fa"
+        ? "اول اسم خودت را بزن، بعد کلمه را بنویس. این دور فقط یک حدس دارد."
+        : "Tap your own name, then type the word. Only a spy’s guess counts.";
+      alive.forEach((p) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "list-btn";
+        b.textContent = p.name;
+        b.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          state.guessWho = p.id;
+          box.querySelectorAll("button").forEach((x) => { x.classList.remove("on"); x.style.background = ""; x.style.color = ""; });
+          b.classList.add("on");
+          b.style.background = "#e2b56a";
+          b.style.color = "#1a120c";
+          $("guessLead").textContent = (state.ui === "fa" ? "انتخاب شد: " : "Selected: ") + p.name;
+        };
+        box.appendChild(b);
+      });
+    } else {
+      $("guessLead").textContent = t("guessLead");
+    }
+    $("guessInput").value = "";
+    $("guessModal").classList.add("on");
+  };
+  $("closeGuess").onclick = () => $("guessModal").classList.remove("on");
+  $("submitGuess").onclick = submitGuess;
+}
+
+applyUi();
+bind();
+const preset = new URLSearchParams(location.search).get("room");
+if (preset) {
+  state.afterSetup = "join";
+  show("setup");
+  $("masterName").focus();
+}
+
+
+</script>
+</body>
+</html>
