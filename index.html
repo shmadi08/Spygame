@@ -677,11 +677,6 @@ function applyRemote(room) {
     paintDiscuss();
   } else if (room.phase === "vote") {
     openVote();
-    const alive = room.players.filter((p) => p.alive);
-    const allIn = alive.every((p) => (room.votes || {})[p.id]);
-    const end = $("endRoundVote");
-    if (end) end.style.display = allIn && state.isMaster ? "block" : "none";
-    if (allIn && state.isMaster) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی." : "Everyone voted. You can end the round.";
   } else if (room.phase === "result") {
     showResult({
       tie: !room.lastElim,
@@ -1554,24 +1549,70 @@ function paintDiscuss() {
   if (enBtn) enBtn.style.display = "none";
 }
 
+function voteTally() {
+  const votes = (net.room && net.room.votes) || state.votes || {};
+  const tally = {};
+  Object.values(votes).forEach((id) => { if (id) tally[id] = (tally[id] || 0) + 1; });
+  return tally;
+}
+
 function openVote() {
   clearInterval(state.timer);
-  state.selectedVote = "";
   show("vote");
   const voterId = state.mode === "pass" ? state.passVoter : state.meId;
-  const alive = state.players.filter((p) => p.alive && p.id !== voterId);
-  $("voteHint").textContent = state.mode === "pass" ? t("giveTo") + " " + ((state.players.find((p) => p.id === voterId) || {}).name || "") : (state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی" : "You cannot vote for yourself");
-  $("voteList").innerHTML = alive.map((p) =>
-    `<button class="list-btn" type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`
-  ).join("");
-  $("voteList").querySelectorAll("button").forEach((b) => {
-    b.onclick = () => {
-      state.selectedVote = b.dataset.id;
-      $("voteList").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
-      b.classList.add("on");
-    };
-  });
-  if (state.mode === "online" && state.isMaster) broadcast({ type: "phase", phase: "vote", players: alivePublic() });
+  const votes = (state.mode === "online" && net.room && net.room.votes) || state.votes || {};
+  const mine = votes[voterId];
+  const alive = state.players.filter((p) => p.alive);
+  const targets = alive.filter((p) => p.id !== voterId);
+  const tally = voteTally();
+  const votedCount = alive.filter((p) => votes[p.id]).length;
+  const host = state.isMaster || (typeof amStoredHost === "function" && amStoredHost(state.room));
+  const allIn = alive.length > 0 && alive.every((p) => votes[p.id]);
+
+  if (mine && state.mode !== "pass" && !state.changingVote) {
+    const chosen = alive.find((p) => p.id === mine);
+    $("voteHint").textContent = state.ui === "fa"
+      ? `رأی تو ثبت شد برای ${chosen ? chosen.name : ""}. منتظر بقیه. ${votedCount} از ${alive.length}`
+      : `Your vote is in. Waiting. ${votedCount}/${alive.length}`;
+    $("voteList").innerHTML = alive.map((p) => {
+      const n = tally[p.id] || 0;
+      const did = votes[p.id] ? (state.ui === "fa" ? "رأی داد" : "voted") : (state.ui === "fa" ? "منتظر" : "waiting");
+      return `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b></span><span>${n} ${state.ui === "fa" ? "رأی" : "votes"} · ${did}</span></div>`;
+    }).join("");
+    $("castVote").style.display = "none";
+    let change = $("changeVote");
+    if (!change) {
+      change = document.createElement("button");
+      change.id = "changeVote";
+      change.className = "btn ghost";
+      change.type = "button";
+      $("castVote").parentElement.insertBefore(change, $("castVote").nextSibling);
+    }
+    change.style.display = "block";
+    change.textContent = state.ui === "fa" ? "تعویض رأی" : "Change vote";
+    change.onclick = () => { state.changingVote = true; openVote(); };
+  } else {
+    state.selectedVote = mine || "";
+    $("voteHint").textContent = state.mode === "pass"
+      ? t("giveTo") + " " + ((state.players.find((p) => p.id === voterId) || {}).name || "")
+      : (state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی. بعد از ثبت، تعداد رأی‌ها دیده می‌شود." : "You cannot vote for yourself.");
+    $("voteList").innerHTML = targets.map((p) =>
+      `<button class="list-btn ${state.selectedVote === p.id ? "on" : ""}" type="button" data-id="${p.id}">${escapeHtml(p.name)} · ${tally[p.id] || 0}</button>`
+    ).join("");
+    $("voteList").querySelectorAll("button").forEach((b) => {
+      b.onclick = () => {
+        state.selectedVote = b.dataset.id;
+        $("voteList").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+      };
+    });
+    $("castVote").style.display = "block";
+    const change = $("changeVote");
+    if (change) change.style.display = "none";
+  }
+  const end = $("endRoundVote");
+  if (end) end.style.display = allIn && (host || state.mode === "pass") ? "block" : "none";
+  if (allIn && host) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی." : "Everyone voted. You can end the round.";
 }
 
 function castVote() {
@@ -1584,16 +1625,16 @@ function castVote() {
     return;
   }
   if (!net.room) return;
+  if (!net.room.votes) net.room.votes = {};
   net.room.votes[state.meId] = state.selectedVote;
   state.votes = net.room.votes;
+  state.changingVote = false;
   const alive = net.room.players.filter((p) => p.alive);
   const allIn = alive.every((p) => net.room.votes[p.id]);
   net.room.allVoted = allIn;
   publishRoom(net.room);
   toast(state.ui === "fa" ? "رأی ثبت شد" : "Vote saved");
-  const end = $("endRoundVote");
-  if (end) end.style.display = allIn && state.isMaster ? "block" : "none";
-  if (allIn) $("voteHint").textContent = state.ui === "fa" ? "رأی‌ها کامل شد. مستر می‌تواند دور را تمام کند." : "All votes are in. The host can end the round.";
+  openVote();
 }
 
 function passVoteNext() {
@@ -1680,6 +1721,9 @@ function showResult(info) {
   else if (info.reason === "guess") html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${t("spiesWin")}</p>`;
   else if (info.reason === "lateGuess") html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${t("spy")} · ${t("out")}</p><p>${state.ui === "fa" ? "حدس کلمه‌اش غلط بود." : "The word guess was wrong."}</p>`;
   else html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${roleName(info.elim.role)} · ${t("out")}</p>`;
+  const tally = voteTally();
+  const votes = (net.room && net.room.votes) || state.votes || {};
+  html += `<div class="players" style="margin-top:12px">${state.players.filter(p => p.alive || tally[p.id]).map(p => `<div class="player"><span><b>${escapeHtml(p.name)}</b></span><span>${tally[p.id] || 0} ${state.ui === "fa" ? "رأی" : "votes"}</span></div>`).join("")}</div>`;
   if (info.win) {
     html += `<h3 style="margin-top:18px">${info.win === "citizen" ? t("citizensWin") : t("spiesWin")}</h3>`;
     html += `<p>${t("wordWas")}: <b>${escapeHtml(state.word || state.wordShown)}</b>${state.wordFa ? " · " + escapeHtml(state.wordFa) : ""}</p>`;
