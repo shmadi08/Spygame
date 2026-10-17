@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#100d0b" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>جاسوس</title>
+<title>بازی جاسوس</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,560;9..144,700&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/mqtt@5.10.3/dist/mqtt.min.js"></script>
@@ -211,8 +211,8 @@
         </svg>
       </div>
       <div>
-        <h1 id="brandTitle">جاسوس</h1>
-        <p id="brandSub">کلمه را بدان. خودت را لو نده. · نسخه ۱۳</p>
+        <h1 id="brandTitle">بازی جاسوس</h1>
+        <p id="brandSub">کلمه را بدان. خودت را لو نده.</p>
       </div>
     </div>
     <div class="lang-switch">
@@ -584,6 +584,7 @@ function blankRoom(code, hostId, name) {
     round: 1,
     discussEndsAt: 0,
     votes: {},
+    defense: null,
     guessUsed: false,
     lastElim: null,
     win: "",
@@ -842,6 +843,7 @@ const state = {
 
 const copy = {
   fa: {
+    brandTitle: "بازی جاسوس",
     brandSub: "کلمه را بدان. خودت را لو نده.",
     homeTitle: "دور میز، یک کلمه، چند جاسوس",
     homeLead: "مستر لینک را می‌فرستد. هر کس اسم خودش را می‌گذارد. بعد فقط نقش خودش را می‌بیند: شهروند با یک کلمه، یا جاسوس بی‌کلمه.",
@@ -933,6 +935,7 @@ const copy = {
     notYet: "هنوز ندیده"
   },
   en: {
+    brandTitle: "Spy Game",
     brandSub: "Know the word. Do not blow your cover.",
     homeTitle: "One word. A few spies.",
     homeLead: "The host shares a link. Everyone sets a name, then sees only their own card: citizen with a word, or spy with none.",
@@ -1059,6 +1062,8 @@ function applyUi() {
   document.documentElement.dir = fa ? "rtl" : "ltr";
   $("uiFa").classList.toggle("on", fa);
   $("uiEn").classList.toggle("on", !fa);
+  $("brandTitle").textContent = t("brandTitle");
+  document.title = t("brandTitle");
   $("brandSub").textContent = t("brandSub");
   $("homeTitle").textContent = t("homeTitle");
   $("homeLead").textContent = t("homeLead");
@@ -1269,6 +1274,7 @@ function startOnline() {
   net.room.used = state.used;
   net.room.phase = "card";
   net.room.votes = {};
+  net.room.defense = null;
   net.room.win = "";
   net.room.reason = "";
   net.room.lastElim = null;
@@ -1538,6 +1544,7 @@ function paintDiscuss() {
   ).join("");
   const me = state.players.find((p) => p.id === state.meId);
   $("openGuess").style.display = me && me.role === "spy" && me.alive && !state.guessUsed ? "block" : "none";
+  if ($("toVote")) $("toVote").style.display = me && me.alive === false ? "none" : "block";
   if (state.mode === "pass") $("openGuess").style.display = state.guessUsed ? "none" : "block";
   const alive = state.players.filter((p) => p.alive);
   const allIn = alive.length && alive.every((p) => (state.votes || {})[p.id]);
@@ -1559,6 +1566,21 @@ function voteTally() {
 function openVote() {
   clearInterval(state.timer);
   show("vote");
+  const me = state.players.find((p) => p.id === state.meId);
+  if (state.mode === "online" && me && me.alive === false) {
+    const votes = (net.room && net.room.votes) || state.votes || {};
+    const alive = state.players.filter((p) => p.alive);
+    const tally = voteTally();
+    const votedCount = alive.filter((p) => votes[p.id]).length;
+    $("voteHint").textContent = state.ui === "fa" ? `حذف شدی. دیگر رأی نداری. ${votedCount} از ${alive.length} رأی دادند.` : "You are out. You cannot vote.";
+    $("voteList").innerHTML = alive.map((p) => `<div class="player"><span><b>${escapeHtml(p.name)}</b></span><span>${tally[p.id] || 0} ${state.ui === "fa" ? "رأی" : "votes"}</span></div>`).join("");
+    $("castVote").style.display = "none";
+    const change = $("changeVote");
+    if (change) change.style.display = "none";
+    const end = $("endRoundVote");
+    if (end) end.style.display = "none";
+    return;
+  }
   const voterId = state.mode === "pass" ? state.passVoter : state.meId;
   const votes = (state.mode === "online" && net.room && net.room.votes) || state.votes || {};
   const mine = votes[voterId];
@@ -1610,12 +1632,115 @@ function openVote() {
     const change = $("changeVote");
     if (change) change.style.display = "none";
   }
+  const board = alive.map((p) => `<div class="player"><span><b>${escapeHtml(p.name)}</b></span><span>${tally[p.id] || 0} ${state.ui === "fa" ? "رأی" : "votes"}</span></div>`).join("");
+  let box = $("tallyBox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "tallyBox";
+    box.className = "players";
+    box.style.marginTop = "10px";
+    $("voteList").insertAdjacentElement("afterend", box);
+  }
+  box.innerHTML = `<p class="hint">${state.ui === "fa" ? "تعداد رأی هر نفر" : "Votes"} · ${votedCount}/${alive.length}</p>` + board;
+  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  const top = ranked[0];
+  const tied = ranked[1] && ranked[0][1] === ranked[1][1];
+  const defense = (net.room && net.room.defense) || null;
+  let defendBtn = $("openDefense");
+  if (!defendBtn) {
+    defendBtn = document.createElement("button");
+    defendBtn.id = "openDefense";
+    defendBtn.className = "btn";
+    defendBtn.type = "button";
+    $("castVote").parentElement.appendChild(defendBtn);
+  }
+  defendBtn.style.display = "none";
+  let yesBtn = $("defYes");
+  let noBtn = $("defNo");
+  if (!yesBtn) {
+    yesBtn = document.createElement("button");
+    yesBtn.id = "defYes";
+    yesBtn.className = "btn";
+    yesBtn.type = "button";
+    noBtn = document.createElement("button");
+    noBtn.id = "defNo";
+    noBtn.className = "btn ghost";
+    noBtn.type = "button";
+    $("castVote").parentElement.appendChild(yesBtn);
+    $("castVote").parentElement.appendChild(noBtn);
+  }
+  yesBtn.style.display = "none";
+  noBtn.style.display = "none";
+  if (allIn && top && !tied && state.mode === "online") {
+    const accused = alive.find((p) => p.id === top[0]);
+    if (defense && defense.open && defense.id === top[0]) {
+      const dVotes = defense.votes || {};
+      const yes = Object.values(dVotes).filter((v) => v === "yes").length;
+      const no = Object.values(dVotes).filter((v) => v === "no").length;
+      $("voteHint").textContent = state.ui === "fa"
+        ? `${accused ? accused.name : ""} دفاع می‌کند. قبول ${yes} · رد ${no}`
+        : `${accused ? accused.name : ""} is defending.`;
+      if (me && me.alive && me.id !== defense.id && !dVotes[me.id]) {
+        yesBtn.style.display = "block";
+        noBtn.style.display = "block";
+        yesBtn.textContent = state.ui === "fa" ? "دفاع را قبول دارم" : "Accept defense";
+        noBtn.textContent = state.ui === "fa" ? "دفاع را رد می‌کنم" : "Reject";
+        yesBtn.onclick = () => sendDefense("yes");
+        noBtn.onclick = () => sendDefense("no");
+      }
+    } else if (accused && me && me.id === accused.id) {
+      defendBtn.style.display = "block";
+      defendBtn.textContent = state.ui === "fa" ? "دفاع می‌کنم و خودم را سفید می‌کنم" : "Defend myself";
+      defendBtn.onclick = startDefense;
+      $("voteHint").textContent = state.ui === "fa" ? `تو بیشترین رأی را داری (${top[1]}). می‌توانی دفاع کنی.` : "You have the most votes. You may defend.";
+    } else {
+      $("voteHint").textContent = state.ui === "fa"
+        ? `بیشترین رأی: ${accused ? accused.name : ""} با ${top[1]} رأی. منتظر دفاع یا پایان مستر.`
+        : `Most votes: ${accused ? accused.name : ""} (${top[1]}).`;
+    }
+  }
   const end = $("endRoundVote");
   if (end) end.style.display = allIn && (host || state.mode === "pass") ? "block" : "none";
-  if (allIn && host) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی." : "Everyone voted. You can end the round.";
+  if (allIn && host && !(defense && defense.open)) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی، یا منتظر دفاع بمانی." : "Everyone voted. You can end the round.";
+}
+
+function startDefense() {
+  if (!net.room) return;
+  const tally = voteTally();
+  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return;
+  net.room.defense = { id: ranked[0][0], open: true, votes: {} };
+  publishRoom(net.room);
+  openVote();
+}
+
+function sendDefense(choice) {
+  if (!net.room || !net.room.defense) return;
+  if (!net.room.defense.votes) net.room.defense.votes = {};
+  net.room.defense.votes[state.meId] = choice;
+  const alive = net.room.players.filter((p) => p.alive && p.id !== net.room.defense.id);
+  const votes = net.room.defense.votes;
+  const done = alive.every((p) => votes[p.id]);
+  if (done) {
+    const yes = alive.filter((p) => votes[p.id] === "yes").length;
+    if (yes > alive.length / 2) {
+      net.room.votes = {};
+      net.room.defense = null;
+      net.room.phase = "vote";
+      state.changingVote = false;
+      toast(state.ui === "fa" ? "دفاع قبول شد. رأی‌ها پاک شد." : "Defense accepted. Votes cleared.");
+    } else {
+      net.room.defense.open = false;
+      toast(state.ui === "fa" ? "دفاع رد شد." : "Defense rejected.");
+    }
+  }
+  publishRoom(net.room);
+  openVote();
 }
 
 function castVote() {
+  const meNow = state.players.find((p) => p.id === state.meId);
+  if (state.mode === "online" && meNow && meNow.alive === false) return toast(state.ui === "fa" ? "حذف شدی، رأی نداری" : "You are out");
   if (!state.selectedVote) return toast(state.ui === "fa" ? "اول یک اسم را انتخاب کن" : "Pick a name first");
   const voterId = state.mode === "pass" ? state.passVoter : state.meId;
   if (state.selectedVote === voterId) return toast(state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی" : "You cannot vote for yourself");
