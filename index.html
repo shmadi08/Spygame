@@ -844,7 +844,7 @@ const state = {
 const copy = {
   fa: {
     brandTitle: "بازی جاسوس",
-    brandSub: "کلمه را بدان. خودت را لو نده. · ۱۵",
+    brandSub: "کلمه را بدان. خودت را لو نده.",
     homeTitle: "دور میز، یک کلمه، چند جاسوس",
     homeLead: "میزبان لینک را می‌فرستد. هر کس اسم خودش را می‌گذارد. بعد فقط نقش خودش را می‌بیند: شهروند با یک کلمه، یا جاسوس بی‌کلمه.",
     goOnline: "ساخت اتاق با لینک",
@@ -928,6 +928,7 @@ const copy = {
     linkHelp: "این لینک را بفرست. هر نفر اسم خودش را می‌گذارد.",
     you: "تو",
     host: "میزبان",
+    picture: "شکل",
     connected: "وصل",
     spyCountBad: "تعداد جاسوس باید کمتر از شهروندها باشد.",
     round: "دور",
@@ -936,7 +937,7 @@ const copy = {
   },
   en: {
     brandTitle: "Spy Game",
-    brandSub: "Know the word. Do not blow your cover. · 15",
+    brandSub: "Know the word. Do not blow your cover.",
     homeTitle: "One word. A few spies.",
     homeLead: "The host shares a link. Everyone sets a name, then sees only their own card: citizen with a word, or spy with none.",
     goOnline: "Create a room link",
@@ -991,7 +992,7 @@ const copy = {
     medium: "Medium",
     hard: "Hard",
     mix: "Mixed",
-    fa: "فارسی",
+    fa: "Persian",
     en: "English",
     need3: "Need at least 3 players.",
     needName: "Enter a name.",
@@ -1020,6 +1021,7 @@ const copy = {
     linkHelp: "Send this link. Each person sets their own name.",
     you: "You",
     host: "Host",
+    picture: "Picture",
     connected: "in",
     spyCountBad: "Spies must stay fewer than citizens.",
     round: "Round",
@@ -1103,6 +1105,7 @@ function applyUi() {
   $("castVote").textContent = t("cast");
   $("voteBack").textContent = t("voteBack");
   $("scCLabel").textContent = t("citizen");
+  if ($("lobby") && $("lobby").classList.contains("on")) renderLobby();
   $("scSLabel").textContent = t("spy");
   $("guessTitle").textContent = t("guessTitle");
   $("guessLead").textContent = t("guessLead");
@@ -1217,7 +1220,7 @@ function renderLobby() {
     const host = p.host ? " · " + t("host") : "";
     const kick = state.isMaster && p.id !== state.meId
       ? `<button class="btn small ghost" data-kick="${p.id}">×</button>` : "";
-    const kid = p.kid ? " · شکل" : "";
+    const kid = p.kid ? " · " + t("picture") : "";
     return `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b>${me}${host}${kid}</span>${kick}</div>`;
   }).join("");
   $("lobbyList").querySelectorAll("[data-kick]").forEach((b) => {
@@ -1394,9 +1397,9 @@ function switchWord(lang) {
   net.room.settings.wordLang = lang;
   net.room.nextLang = lang;
   publishRoom(net.room);
-  toast(lang === "en" ? "دور بعد انگلیسی است" : "دور بعد فارسی است");
+  toast(lang === "en" ? "Next round: English" : "دور بعد فارسی است");
   const box = $("nextLangLabel");
-  if (box) box.textContent = lang === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی";
+  if (box) box.textContent = lang === "en" ? "Next round: English" : "دور بعد: فارسی";
 }
   function isKid(age) {
   const n = Number(age && age.age != null ? age.age : age);
