@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#100d0b" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>بازی جاسوس</title>
+<title>جاسوس</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,560;9..144,700&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/mqtt@5.10.3/dist/mqtt.min.js"></script>
@@ -92,7 +92,6 @@
     background: transparent; color: var(--ink);
     border: 1px solid var(--line);
   }
-  .btn.ghost.on { background: var(--gold); color: #1a120c; border-color: var(--gold); }
   .btn.small { padding: 9px 12px; font-size: 13px; border-radius: 12px; }
   .btn:disabled { opacity: .45; cursor: not-allowed; }
   .row { display: flex; gap: 8px; align-items: center; }
@@ -211,7 +210,7 @@
         </svg>
       </div>
       <div>
-        <h1 id="brandTitle">بازی جاسوس</h1>
+        <h1 id="brandTitle">جاسوس</h1>
         <p id="brandSub">کلمه را بدان. خودت را لو نده.</p>
       </div>
     </div>
@@ -239,10 +238,8 @@
     <div class="card">
       <label class="lbl" id="lblName">اسم تو</label>
       <input id="masterName" type="text" maxlength="18" placeholder="مثلاً سارا" />
-      <label class="row" style="margin-top:10px;color:var(--ink);font-size:15px">
-        <input id="kidCard" type="checkbox" style="width:auto" />
-        <span id="lblKid">شکل و توضیح برای این بازیکن (زیر ۱۰ سال)</span>
-      </label>
+      <label class="lbl" id="lblAge" style="margin-top:10px">سن (اگر خالی بماند، بزرگسال حساب می‌شود)</label>
+      <input id="masterAge" type="number" min="1" max="99" placeholder="مثلاً ۸" />
       <p class="lbl" style="margin-top:12px" id="lblLang">زبان کلمات</p>
       <div class="seg" id="wordLang">
         <button type="button" data-v="fa" class="on">فارسی</button>
@@ -376,7 +373,6 @@
   <div class="sheet">
     <h3 id="guessTitle">حدس کلمه</h3>
     <p id="guessLead">فقط یک بار. درست باشد جاسوس‌ها می‌برند. غلط باشد همان جاسوس حذف می‌شود.</p>
-    <div id="guessWhoBox" class="stack" style="margin:8px 0"></div>
     <input id="guessInput" type="text" />
     <div class="row" style="margin-top:10px">
       <button class="btn" id="submitGuess" type="button">ثبت</button>
@@ -522,21 +518,11 @@ const net = {
   applying: false
 };
 
-function wantsKid() {
-  const age = readAge();
-  const ticked = $("kidCard") && $("kidCard").checked;
-  const kid = ticked || (age > 0 && age < 10);
-  localStorage.setItem("jasoos-kid", kid ? "1" : "0");
-  return kid;
-}
-
 function readAge() {
-  const raw = ($("masterAge") && $("masterAge").value || localStorage.getItem("jasoos-age") || "").trim();
+  const raw = ($("masterAge") && $("masterAge").value || "").trim();
   if (!raw) return 0;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  localStorage.setItem("jasoos-age", String(n));
-  return n;
+  return Number.isFinite(n) ? n : 0;
 }
 
 function pid() {
@@ -547,16 +533,6 @@ function pid() {
     localStorage.setItem(key, id);
   }
   return id;
-}
-
-function rememberHost(code, id) {
-  localStorage.setItem("jasoos-host-room", String(code || "").toUpperCase());
-  localStorage.setItem("jasoos-host-id", id);
-}
-
-function amStoredHost(code) {
-  return localStorage.getItem("jasoos-host-room") === String(code || "").toUpperCase()
-    && localStorage.getItem("jasoos-host-id") === state.meId;
 }
 
 function topic(code) {
@@ -578,13 +554,12 @@ function blankRoom(code, hostId, name) {
       minutes: state.minutes,
       blank: state.blank
     },
-    players: [{ id: hostId, name, host: true, role: "", alive: true, age: readAge(), kid: wantsKid() }],
+    players: [{ id: hostId, name, host: true, role: "", alive: true, age: readAge() }],
     word: "",
     scores: { citizen: 0, spy: 0 },
     round: 1,
     discussEndsAt: 0,
     votes: {},
-    defense: null,
     guessUsed: false,
     lastElim: null,
     win: "",
@@ -620,28 +595,9 @@ function publishRoom(room) {
   net.client.publish(topic(room.code), JSON.stringify(room), { qos: 1, retain: true });
 }
 
-function mergeRoom(room) {
-  if (!net.room || !room) return room;
-  const prev = net.room.players || [];
-  const incoming = room.players || [];
-  const map = new Map();
-  prev.forEach((p) => map.set(p.id, { ...p }));
-  incoming.forEach((p) => {
-    const old = map.get(p.id);
-    map.set(p.id, old ? { ...old, ...p, seen: !!(old.seen || p.seen), host: !!(old.host || p.host) } : p);
-  });
-  if (!room.hostId && net.room.hostId) room.hostId = net.room.hostId;
-  if (room.hostId) {
-    map.forEach((p) => { p.host = p.id === room.hostId; });
-  }
-  room.players = [...map.values()].filter((p) => p && p.id);
-  return room;
-}
-
 function applyRemote(room) {
   if (!room || !room.code) return;
   if (room.version && room.version < net.seenVersion) return;
-  room = mergeRoom(room);
   net.seenVersion = room.version || 0;
   net.room = room;
   net.applying = true;
@@ -650,23 +606,14 @@ function applyRemote(room) {
   state.players = room.players || [];
   state.word = room.word || "";
   state.wordShown = room.word || "";
-  state.wordFa = room.wordFa || "";
   state.scores = room.scores || { citizen: 0, spy: 0 };
   state.round = room.round || 1;
   state.votes = room.votes || {};
   state.guessUsed = !!room.guessUsed;
+  state.isMaster = room.hostId === state.meId;
   const me = state.players.find((p) => p.id === state.meId);
-  state.isMaster = room.hostId === state.meId || !!(me && me.host) || amStoredHost(room.code);
-  if (state.isMaster && room.hostId && room.hostId !== state.meId && amStoredHost(room.code)) room.hostId = state.meId;
   state.myRole = me ? me.role : "";
   if (room.phase === "lobby") {
-    if (state.meId && !state.players.some((p) => p.id === state.meId) && localStorage.getItem("jasoos-name")) {
-      const host = amStoredHost(room.code);
-      room.players.push({ id: state.meId, name: localStorage.getItem("jasoos-name"), host: host, role: "", alive: true, age: readAge(), kid: wantsKid() });
-      if (host) room.hostId = state.meId;
-      publishRoom(room);
-      return;
-    }
     show("lobby");
     renderLobby();
   } else if (room.phase === "card") {
@@ -678,6 +625,11 @@ function applyRemote(room) {
     paintDiscuss();
   } else if (room.phase === "vote") {
     openVote();
+    const alive = room.players.filter((p) => p.alive);
+    const allIn = alive.every((p) => (room.votes || {})[p.id]);
+    const end = $("endRoundVote");
+    if (end) end.style.display = allIn && state.isMaster ? "block" : "none";
+    if (allIn && state.isMaster) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی." : "Everyone voted. You can end the round.";
   } else if (room.phase === "result") {
     showResult({
       tie: !room.lastElim,
@@ -704,29 +656,9 @@ function armTimer(endsAt) {
   state.timer = setInterval(tick, 500);
 }
 
-function forceDiscuss() {
-  if (!net.room) return;
-  if (!state.isMaster && !amStoredHost(state.room)) return;
-  state.isMaster = true;
-  if (net.room.hostId !== state.meId) net.room.hostId = state.meId;
-  net.room.phase = "discuss";
-  if (!net.room.discussEndsAt) net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
-  publishRoom(net.room);
-}
-
 function waitCard() {
   show("reveal");
-  const host = state.isMaster || amStoredHost(state.room);
-  if (host) {
-    state.isMaster = true;
-    const seen = (net.room && net.room.players || []).filter((p) => p.seen).length;
-    const total = (net.room && net.room.players || []).length;
-    $("revealBox").innerHTML = `<div class="cover"><p>کارت‌ها پخش شد. ${seen} از ${total} نفر دیدند.</p><button class="btn" id="forceDiscuss" type="button">شروع بحث</button></div>`;
-    const b = $("forceDiscuss");
-    if (b) b.onclick = forceDiscuss;
-  } else {
-    $("revealBox").innerHTML = `<div class="cover"><p>${t("waitHost")}</p></div>`;
-  }
+  $("revealBox").innerHTML = `<div class="cover"><p>${t("waitHost")}</p></div>`;
 }
 
 function hostRoom() {
@@ -736,7 +668,6 @@ function hostRoom() {
   state.isMaster = true;
   state.meId = pid();
   state.room = Math.random().toString(36).slice(2, 6).toUpperCase();
-  rememberHost(state.room, state.meId);
   history.replaceState(null, "", roomLink());
   localStorage.setItem("jasoos-room", state.room);
   localStorage.setItem("jasoos-name", name);
@@ -765,12 +696,11 @@ function joinRoom(code) {
       if (!net.room) return toast(t("noRoom"));
       if (!net.room.players.some((p) => p.id === state.meId)) {
         if (net.room.phase !== "lobby") return toast(state.ui === "fa" ? "بازی شروع شده" : "Game already started");
-        net.room.players.push({ id: state.meId, name: name.slice(0, 18), host: false, role: "", alive: true, age: readAge(), kid: wantsKid() });
+        net.room.players.push({ id: state.meId, name: name.slice(0, 18), host: false, role: "", alive: true, age: readAge() });
         publishRoom(net.room);
       } else {
         const mine = net.room.players.find((p) => p.id === state.meId);
         mine.age = readAge();
-        mine.kid = wantsKid();
         mine.name = name.slice(0, 18);
         publishRoom(net.room);
       }
@@ -808,7 +738,6 @@ window.addEventListener("pageshow", () => {
 
 </script>
 <script>
-
 const $ = (id) => document.getElementById(id);
 const state = {
   ui: "fa",
@@ -843,7 +772,6 @@ const state = {
 
 const copy = {
   fa: {
-    brandTitle: "بازی جاسوس",
     brandSub: "کلمه را بدان. خودت را لو نده.",
     homeTitle: "دور میز، یک کلمه، چند جاسوس",
     homeLead: "مستر لینک را می‌فرستد. هر کس اسم خودش را می‌گذارد. بعد فقط نقش خودش را می‌بیند: شهروند با یک کلمه، یا جاسوس بی‌کلمه.",
@@ -935,7 +863,6 @@ const copy = {
     notYet: "هنوز ندیده"
   },
   en: {
-    brandTitle: "Spy Game",
     brandSub: "Know the word. Do not blow your cover.",
     homeTitle: "One word. A few spies.",
     homeLead: "The host shares a link. Everyone sets a name, then sees only their own card: citizen with a word, or spy with none.",
@@ -1062,8 +989,6 @@ function applyUi() {
   document.documentElement.dir = fa ? "rtl" : "ltr";
   $("uiFa").classList.toggle("on", fa);
   $("uiEn").classList.toggle("on", !fa);
-  $("brandTitle").textContent = t("brandTitle");
-  document.title = t("brandTitle");
   $("brandSub").textContent = t("brandSub");
   $("homeTitle").textContent = t("homeTitle");
   $("homeLead").textContent = t("homeLead");
@@ -1072,8 +997,6 @@ function applyUi() {
   $("goPass").textContent = t("goPass");
   $("goRules").textContent = t("goRules");
   $("lblName").textContent = t("name");
-  $("masterName").placeholder = fa ? "مثلاً سارا" : "e.g. Sara";
-  if ($("lblKid")) $("lblKid").textContent = fa ? "شکل و توضیح برای این بازیکن" : "Picture and hint for this player";
   $("lblLang").textContent = t("wordLang");
   $("lblLevel").textContent = t("level");
   $("lblCats").textContent = t("cats");
@@ -1171,7 +1094,6 @@ function pickWord() {
   state.used.push(pick.lang + ":" + pick.w);
   state.word = pick.w;
   state.wordShown = pick.w;
-  state.wordLangNow = pick.lang;
 }
 
 function deal(players) {
@@ -1215,8 +1137,7 @@ function renderLobby() {
     const host = p.host ? " · " + t("host") : "";
     const kick = state.isMaster && p.id !== state.meId
       ? `<button class="btn small ghost" data-kick="${p.id}">×</button>` : "";
-    const kid = p.kid ? " · شکل" : "";
-    return `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b>${me}${host}${kid}</span>${kick}</div>`;
+    return `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b>${me}${host}</span>${kick}</div>`;
   }).join("");
   $("lobbyList").querySelectorAll("[data-kick]").forEach((b) => {
     b.onclick = () => kick(b.dataset.kick);
@@ -1259,22 +1180,19 @@ function startOnline() {
   if (!net.room || net.room.players.length < 3) return toast(t("need3"));
   const spies = spyTarget(net.room.players.length);
   if (spies >= net.room.players.length - 1) return toast(t("spyCountBad"));
-  state.wordLang = (net.room.nextLang || net.room.settings.wordLang || "fa");
-  net.room.settings.wordLang = state.wordLang;
+  state.wordLang = net.room.settings.wordLang;
   state.level = net.room.settings.level;
   state.cats = new Set(net.room.settings.cats);
   state.spyMode = net.room.settings.spyMode;
   state.blank = net.room.settings.blank;
   state.minutes = net.room.settings.minutes;
   state.used = net.room.used || [];
-  deal(net.room.players.map((p) => ({ id: p.id, name: p.name, host: p.host, age: p.age, kid: p.kid })));
+  deal(net.room.players.map((p) => ({ id: p.id, name: p.name, host: p.host, age: p.age })));
   net.room.players = state.players.map((p) => ({ ...p, seen: false }));
   net.room.word = state.word;
-  net.room.wordFa = "";
   net.room.used = state.used;
   net.room.phase = "card";
   net.room.votes = {};
-  net.room.defense = null;
   net.room.win = "";
   net.room.reason = "";
   net.room.lastElim = null;
@@ -1282,7 +1200,6 @@ function startOnline() {
   net.room.discussEndsAt = 0;
   net.room.round = state.round;
   publishRoom(net.room);
-  enrichWord();
 }
 
 function applyDeal(msg) {
@@ -1301,12 +1218,11 @@ function showMyCard() {
   show("reveal");
   const role = state.myRole;
   const me = state.players.find((p) => p.id === state.meId);
-  const savedAge = Number(localStorage.getItem("jasoos-age") || 0);
-  const kid = !!(me && me.kid) || localStorage.getItem("jasoos-kid") === "1" || isKid(me && me.age) || isKid(savedAge);
+  const kid = me && isKid(me.age);
   const klass = role === "spy" ? "spy" : role === "blank" ? "blank" : "citizen";
   const title = role === "spy" ? t("youSpy") : role === "blank" ? t("youBlank") : t("youCitizen");
   const help = role === "spy" ? t("spyHelp") : role === "blank" ? t("blankHelp") : t("citizenHelp");
-  const word = role === "citizen" ? kidBlock(state.word, kid) + meaningLine() : `<div class="word">${role === "spy" ? "؟" : "—"}</div>`;
+  const word = role === "citizen" ? kidBlock(state.word, kid) : `<div class="word">${role === "spy" ? "؟" : "—"}</div>`;
   $("revealBox").innerHTML = `
     <div class="role-card ${klass}">
       <div class="role-tag">${t("yourTurn")}</div>
@@ -1317,86 +1233,16 @@ function showMyCard() {
     if (state.mode !== "online" || !net.room) return;
     const mine = net.room.players.find((p) => p.id === state.meId);
     if (mine) mine.seen = true;
-    const host = state.isMaster || amStoredHost(state.room);
     const allSeen = net.room.players.every((p) => p.seen);
     if (allSeen) {
       net.room.phase = "discuss";
-      if (!net.room.discussEndsAt) net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
+      net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
     }
     publishRoom(net.room);
-    if (host && net.room.phase === "card") waitCard();
   };
-  fillKidPhoto();
-  fillMeaning();
 }
 
-function meaningLine() {
-  const fa = state.wordFa || (net.room && net.room.wordFa) || "";
-  if (!fa || fa === state.word) return "";
-  return `<p class="hint">معنی: ${escapeHtml(fa)}</p>`;
-}
-
-async function wikiThumb(word) {
-  const urls = [
-    "https://fa.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(word),
-    "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(word)
-  ];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.thumbnail && data.thumbnail.source) return data.thumbnail.source;
-    } catch (e) { /* try next */ }
-  }
-  return "";
-}
-
-async function fillKidPhoto() {
-  return;
-}
-
-async function fillMeaning() {
-  const fa = (net.room && net.room.wordFa) || "";
-  if (!fa) return;
-  const note = $("kidNote");
-  if (note && !note.textContent.includes(fa)) note.textContent = fa + " — " + note.textContent;
-}
-
-async function enrichWord() {
-  if (!state.word || !/[a-z]/i.test(state.word)) return;
-  const fixed = { piano: "پیانو", violin: "ویولن", guitar: "گیتار", drum: "طبل", flute: "فلوت" };
-  const known = fixed[norm(state.word)];
-  if (known) {
-    state.wordFa = known;
-    if (net.room) { net.room.wordFa = known; publishRoom(net.room); }
-    return;
-  }
-  try {
-    const url = "https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&lllang=fa&format=json&origin=*&redirects=1&titles=" + encodeURIComponent(state.word);
-    const res = await fetch(url);
-    const data = await res.json();
-    const pages = data.query && data.query.pages || {};
-    const page = Object.values(pages)[0];
-    const fa = page && page.langlinks && page.langlinks[0] && page.langlinks[0]["*"];
-    if (fa && fa.length < 40) {
-      state.wordFa = fa;
-      if (net.room) { net.room.wordFa = fa; publishRoom(net.room); }
-    }
-  } catch (e) { /* skip bad meaning */ }
-}
-
-function switchWord(lang) {
-  if (!state.isMaster || !net.room) return;
-  state.wordLang = lang;
-  net.room.settings.wordLang = lang;
-  net.room.nextLang = lang;
-  publishRoom(net.room);
-  toast(lang === "en" ? "دور بعد انگلیسی است" : "دور بعد فارسی است");
-  const box = $("nextLangLabel");
-  if (box) box.textContent = lang === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی";
-}
-  function isKid(age) {
+function isKid(age) {
   const n = Number(age && age.age != null ? age.age : age);
   return Number.isFinite(n) && n > 0 && n < 10;
 }
@@ -1404,63 +1250,47 @@ function switchWord(lang) {
 function kidBlock(word, kid) {
   if (!kid) return `<div class="word">${escapeHtml(word)}</div>`;
   const info = kidInfo(word);
-  return `<div style="background:#f6efe4;color:#1a120c;border-radius:16px;padding:8px;margin:6px 0"><div id="kidPhoto" style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:12px">${info.art}</div><div class="word" style="color:#1a120c">${escapeHtml(word)}</div><p id="kidNote" style="font-size:13px;line-height:1.35;margin:4px 0 0">${escapeHtml(info.text)}</p></div>`;
+  return `<div style="width:140px;height:140px;margin:8px auto">${info.svg}</div><div class="word">${escapeHtml(word)}</div><p class="hint" style="font-size:18px">${escapeHtml(info.text)}</p>`;
 }
-
-const KID_ICONS = {"نان": "🍞", "برنج": "🍚", "پیتزا": "🍕", "کباب": "🍖", "چای": "🍵", "قهوه": "☕", "سیب": "🍎", "موز": "🍌", "شیر": "🥛", "تخممرغ": "🥚", "پنیر": "🧀", "بستنی": "🍦", "سوپ": "🥣", "مرغ": "🍗", "هندوانه": "🍉", "خیار": "🥒", "گوجه": "🍅", "سیبزمینی": "🥔", "ماست": "🥛", "شکلات": "🍫", "اب": "💧", "نمک": "🧂", "قند": "🍬", "عسل": "🍯", "خرما": "🌴", "گربه": "🐱", "سگ": "🐶", "اسب": "🐴", "گاو": "🐄", "گوسفند": "🐑", "ماهی": "🐟", "پرنده": "🐦", "فیل": "🐘", "خرگوش": "🐰", "اردک": "🦆", "بز": "🐐", "کلاغ": "🐦‍⬛", "گنجشک": "🐦", "پروانه": "🦋", "مورچه": "🐜", "زنبور": "🐝", "لاکپشت": "🐢", "قورباغه": "🐸", "خرس": "🐻", "گرگ": "🐺", "روباه": "🦊", "موش": "🐭", "طوطی": "🦜", "پنگوئن": "🐧", "زرافه": "🦒", "کانگورو": "🦘", "دلفین": "🐬", "نهنگ": "🐋", "اختاپوس": "🐙", "عقاب": "🦅", "جغد": "🦉", "اهو": "🦌", "شتر": "🐪", "یوزپلنگ": "🐆", "پلنگ": "🐆", "کرگدن": "🦏", "تمساح": "🐊", "کوالا": "🐨", "لاما": "🦙", "فلامینگو": "🦩", "طاووس": "🦚", "خارپشت": "🦔", "سنجاب": "🐿️", "راکون": "🦝", "گورخر": "🦓", "شامپانزه": "🐒", "قو": "🦢", "مارمولک": "🦎", "مدرسه": "🏫", "بیمارستان": "🏥", "بازار": "🏪", "پارک": "🌳", "خانه": "🏠", "رستوران": "🍽️", "فرودگاه": "✈️", "سینما": "🎬", "کتابخانه": "📚", "مسجد": "🕌", "استخر": "🏊", "ساحل": "🏖️", "کوه": "⛰️", "جنگل": "🌲", "ایستگاه": "🚉", "بانک": "🏦", "داروخانه": "💊", "نانوایی": "🥖", "زمینفوتبال": "⚽", "هتل": "🏨", "موزه": "🖼️", "دانشگاه": "🎓", "اداره": "🏢", "خیابان": "🛣️", "روستا": "🏡", "فانوسدریایی": "🚨", "اکواریوم": "🐠", "شهربازی": "🎡", "پیستاسکی": "⛷️", "گلخانه": "🪴", "معدن": "⛏️", "بندر": "⚓", "جزیره": "🏝️", "واحه": "🌴", "غار": "🕳️", "اتشفشان": "🌋", "قطب": "🧊", "صحرا": "🏜️", "مترو": "🚇", "ازمایشگاه": "🔬", "معلم": "👩‍🏫", "پزشک": "🩺", "راننده": "🚗", "اشپز": "👨‍🍳", "پلیس": "👮", "اتشنشان": "🚒", "کشاورز": "🚜", "مهندس": "👷", "پرستار": "💉", "نانوا": "🥖", "فروشنده": "🛒", "خلبان": "✈️", "نقاش": "🎨", "خواننده": "🎤", "بازیکن": "🏅", "قاضی": "⚖️", "خبرنگار": "📰", "مکانیک": "🔧", "خیاط": "🧵", "باغبان": "🌱", "دندانپزشک": "🦷", "داروساز": "💊", "معمار": "📐", "بازیگر": "🎭", "نویسنده": "✍️", "غواص": "🤿", "کتابدار": "📚", "دامپزشک": "🐾", "کاراگاه": "🕵️", "ملوان": "⚓", "قصاب": "🔪", "صندلی": "🪑", "میز": "🪵", "کتاب": "📖", "گوشی": "📱", "کلید": "🔑", "ساعت": "⌚", "عینک": "👓", "کیف": "👜", "کفش": "👟", "چتر": "☂️", "لامپ": "💡", "اینه": "🪞", "قاشق": "🥄", "چنگال": "🍴", "بشقاب": "🍽️", "لیوان": "🥛", "خودکار": "🖊️", "دفتر": "📓", "توپ": "⚽", "دوچرخه": "🚲", "تلویزیون": "📺", "یخچال": "🧊", "در": "🚪", "پنجره": "🪟", "تخت": "🛏️", "قطبنما": "🧭", "تلسکوپ": "🔭", "میکروسکوپ": "🔬", "چمدان": "🧳", "کوله": "🎒", "نردبان": "🪜", "قیچی": "✂️", "سوزن": "🪡", "نخ": "🧵", "شمع": "🕯️", "فندک": "🔥", "رادیو": "📻", "ویولن": "🎻", "پیانو": "🎹", "طبل": "🥁", "بادکنک": "🎈", "بادبادک": "🪁", "نقشه": "🗺️", "لنگر": "⚓", "فوتبال": "⚽", "والیبال": "🏐", "بسکتبال": "🏀", "شنا": "🏊", "دو": "🏃", "تنیس": "🎾", "کشتی": "🤼", "دوچرخهسواری": "🚴", "پیادهروی": "🚶", "اسکی": "⛷️", "بوکس": "🥊", "بدمینتون": "🏸", "پینگپنگ": "🏓", "هندبال": "🤾", "فوتسال": "⚽", "ژیمناستیک": "🤸", "یوگا": "🧘", "کوهنوردی": "🧗", "اسبسواری": "🏇", "اسکیت": "⛸️", "گلف": "⛳", "بیسبال": "⚾", "هاکی": "🏒", "شیرجه": "🤿", "وزنه": "🏋️", "کاراته": "🥋", "جودو": "🥋", "تکواندو": "🥋", "دارت": "🎯", "بیلیارد": "🎱", "بولینگ": "🎳", "قایقرانی": "🚣", "بادبانی": "⛵", "ماراتن": "🏃", "تیراندازی": "🎯", "درخت": "🌳", "گل": "🌸", "خورشید": "☀️", "ماه": "🌙", "ستاره": "⭐", "باران": "🌧️", "برف": "❄️", "ابر": "☁️", "رود": "🏞️", "دریا": "🌊", "سنگ": "🪨", "شن": "🏖️", "برگ": "🍃", "چمن": "🌿", "اتش": "🔥", "باد": "💨", "رعد": "⚡", "رنگینکمان": "🌈", "بهار": "🌷", "تابستان": "🌞", "پاییز": "🍂", "زمستان": "⛄", "ابشار": "💦", "خسوف": "🌑", "کسوف": "🌒", "گردباد": "🌪️", "سونامی": "🌊", "زلزله": "🌋", "کهکشان": "🌌", "دنبالهدار": "☄️", "شهاب": "💫", "مه": "🌫️", "تگرگ": "🧊", "صاعقه": "⚡", "لپتاپ": "💻", "اینترنت": "🌐", "ربات": "🤖", "دوربین": "📷", "هدفون": "🎧", "شارژر": "🔌", "موس": "🖱️", "کیبورد": "⌨️", "اسپیکر": "🔊", "تبلت": "📱", "باتری": "🔋", "فلش": "💾", "پرینتر": "🖨️", "ماهواره": "🛰️", "پهپاد": "🛸", "اپ": "📲", "رمز": "🔐", "صفحه": "🖥️", "دکمه": "🔘", "کابل": "🔌", "جیپیاس": "📍", "رادار": "📡", "لیزر": "🔴", "پیراهن": "👕", "شلوار": "👖", "کلاه": "🎩", "کت": "🧥", "دامن": "👗", "روسری": "🧣", "جوراب": "🧦", "کمربند": "🧷", "ژاکت": "🧥", "تیشرت": "👕", "مانتو": "🧥", "شال": "🧣", "دستکش": "🧤", "عینکافتابی": "🕶️", "انگشتر": "💍", "گردنبند": "📿", "چادر": "⛺", "لباسشنا": "🩱", "کراوات": "👔", "پاپیون": "🎀", "بارانی": "🧥", "هودی": "👕", "چکمه": "👢", "صندل": "🩴", "ماسک": "😷", "فیلم": "🎬", "اهنگ": "🎵", "نقاشی": "🖼️", "تئاتر": "🎭", "رقص": "💃", "عکس": "📸", "داستان": "📖", "شعر": "📝", "کارتون": "📺", "سریال": "📺", "کنسرت": "🎤", "جشن": "🎉", "عید": "🎉", "نوروز": "🌱", "یلدا": "🍉", "سفره": "🍽️", "هدیه": "🎁", "بازی": "🎮", "جوک": "😄", "قهرمان": "🦸", "هیولا": "👹", "تار": "🎸", "سهتار": "🎸", "دف": "🥁", "سنتور": "🎹", "شاهنامه": "📚", "حافظ": "📖"};
-const KID_TEXT = {"بز": "بز حیوانی است با شاخ و ریش.", "وزنه": "وزنه آهن سنگینی است که بلند می‌کنند.", "هدیه": "هدیه جعبه‌ای است که به کسی می‌دهی.", "عید": "عید روز جشن است.", "دو": "دو یعنی تند دویدن.", "کیبورد": "کیبورد دکمه‌های کامپیوتر است.", "باتری": "باتری به وسیله برق می‌دهد.", "نقاش": "نقاش با قلم‌مو رنگ می‌زند.", "پروانه": "پروانه حشره‌ای است با بال‌های رنگی."};
 
 function kidInfo(word) {
   const key = norm(word);
-  const icon = KID_ICONS[key];
-  const text = KID_TEXT[key] || (icon ? "شکل بالا همان کلمه است." : "برای این کلمه شکل دقیق نداریم. با یک مثال ساده بگو.");
-  const art = icon ? `<div style="font-size:84px;line-height:1">${icon}</div>` : `<div style="font-size:40px;font-weight:800;color:#1a120c">${escapeHtml(word)}</div>`;
-  return { text, art };
-}
-
-function kidArt(kind) {
-  const box = (inner) => `<svg width="170" height="150" viewBox="0 0 120 100">${inner}</svg>`;
-  const arts = {
-    party: box(`<circle cx="36" cy="58" r="8" fill="#c8453a"/><circle cx="60" cy="42" r="8" fill="#e2b56a"/><circle cx="84" cy="58" r="8" fill="#6aa0c8"/><path d="M28 72h64" stroke="#e2b56a" stroke-width="4"/>`),
-    run: box(`<circle cx="78" cy="24" r="9" fill="#e2b56a"/><path d="M72 36l-18 16 16 4-8 20M64 50l16 8 8 18M56 52l-16 8" stroke="#1a120c" stroke-width="5" fill="none" stroke-linecap="round"/>`),
-    paint: box(`<rect x="18" y="62" width="70" height="22" rx="3" fill="#f6efe4" stroke="#1a120c"/><path d="M28 62c8-28 28-28 36 0" fill="#c8453a"/><rect x="88" y="28" width="8" height="40" rx="3" fill="#e2b56a"/>`),
-    keys: box(`<rect x="16" y="36" width="88" height="40" rx="6" fill="#f6efe4" stroke="#1a120c"/><g fill="#1a120c">${[0,1,2,3,4,5].map((i)=>`<rect x="${22+i*13}" y="44" width="10" height="8" rx="1"/>`).join("")}${[0,1,2,3,4].map((i)=>`<rect x="${28+i*13}" y="56" width="10" height="8" rx="1"/>`).join("")}</g>`),
-    battery: box(`<rect x="28" y="34" width="64" height="36" rx="6" fill="#3d7a4a"/><rect x="92" y="44" width="8" height="16" fill="#1a120c"/><rect x="36" y="44" width="28" height="16" fill="#e2b56a"/>`),
-    bread: box(`<ellipse cx="60" cy="58" rx="36" ry="18" fill="#e2b56a"/><path d="M30 58c8-16 52-16 60 0" fill="#c8453a"/>`),
-    apple: box(`<circle cx="60" cy="58" r="24" fill="#c8453a"/><rect x="57" y="28" width="6" height="12" fill="#6b8f71"/>`),
-    banana: box(`<path d="M28 40c20 8 40 28 48 46-16 4-36-10-48-30z" fill="#e2b56a"/>`),
-    cat: box(`<ellipse cx="60" cy="64" rx="26" ry="18" fill="#e2b56a"/><path d="M36 48l8-18 10 14M84 48l-8-18-10 14" fill="#e2b56a"/><circle cx="50" cy="62" r="3" fill="#1a120c"/><circle cx="70" cy="62" r="3" fill="#1a120c"/>`),
-    dog: box(`<ellipse cx="58" cy="64" rx="26" ry="16" fill="#c49a6c"/><circle cx="86" cy="52" r="12" fill="#c49a6c"/><circle cx="90" cy="50" r="2" fill="#1a120c"/>`),
-    fish: box(`<ellipse cx="58" cy="54" rx="28" ry="14" fill="#6aa0c8"/><path d="M86 54l18-12v24z" fill="#6aa0c8"/><circle cx="42" cy="52" r="2" fill="#1a120c"/>`),
-    school: box(`<path d="M60 18l34 20H26z" fill="#c8453a"/><rect x="34" y="40" width="52" height="36" fill="#f6efe4"/><rect x="52" y="56" width="16" height="20" fill="#e2b56a"/>`),
-    house: box(`<path d="M60 18l36 24H24z" fill="#e2b56a"/><rect x="34" y="42" width="52" height="36" fill="#f6efe4"/><rect x="52" y="56" width="14" height="22" fill="#c8453a"/>`),
-    ball: box(`<circle cx="60" cy="52" r="26" fill="#f6efe4" stroke="#1a120c" stroke-width="4"/><path d="M60 26v52M34 52h52" stroke="#1a120c" stroke-width="2" fill="none"/>`),
-    sun: box(`<circle cx="60" cy="52" r="16" fill="#e2b56a"/><g stroke="#e2b56a" stroke-width="4"><path d="M60 20v10M60 74v10M28 52h10M82 52h10"/></g>`),
-    moon: box(`<path d="M68 22a28 28 0 1 0 0 56 22 22 0 1 1 0-56z" fill="#e2b56a"/>`),
-    book: box(`<path d="M18 30h40v52H18zM62 30h40v52H62z" fill="#c8453a"/>`),
-    car: box(`<rect x="16" y="48" width="88" height="24" rx="6" fill="#c8453a"/><circle cx="34" cy="74" r="7" fill="#1a120c"/><circle cx="86" cy="74" r="7" fill="#1a120c"/>`),
-    food: box(`<ellipse cx="60" cy="62" rx="34" ry="14" fill="#e2b56a"/><ellipse cx="60" cy="54" rx="34" ry="14" fill="#c8453a"/>`),
-    animal: box(`<ellipse cx="60" cy="62" rx="28" ry="18" fill="#e2b56a"/><circle cx="42" cy="40" r="9" fill="#e2b56a"/><circle cx="78" cy="40" r="9" fill="#e2b56a"/>`),
-    sport: box(`<circle cx="60" cy="52" r="26" fill="#f6efe4" stroke="#1a120c" stroke-width="4"/>`),
-    job: box(`<circle cx="60" cy="34" r="14" fill="#e2b56a"/><path d="M28 88c6-22 18-30 32-30s26 8 32 30" fill="#f6efe4"/>`),
-    object: box(`<rect x="26" y="36" width="68" height="34" rx="8" fill="#e2b56a"/><circle cx="40" cy="78" r="6" fill="#1a120c"/><circle cx="80" cy="78" r="6" fill="#1a120c"/>`)
+  const known = {
+    نان: ["food", "نان همان چیز نرم و گرمی است که با پنیر می‌خوری."],
+    برنج: ["food", "برنج همان دانه‌های سفید پلو است."],
+    پیتزا: ["food", "پیتزا یک نان گرد با پنیر و سس است."],
+    سیب: ["food", "سیب یک میوهٔ گرد و شیرین است."],
+    موز: ["food", "موز میوهٔ زرد و خمیده است."],
+    گربه: ["animal", "گربه حیوان کوچکی است که میو می‌کند."],
+    سگ: ["animal", "سگ حیوانی است که واق‌واق می‌کند."],
+    ماهی: ["animal", "ماهی توی آب شنا می‌کند."],
+    کرگدن: ["animal", "کرگدن حیوان بزرگ و خاکستری است با یک شاخ روی بینی."],
+    غواص: ["job", "غواص کسی است که با لباس مخصوص می‌رود زیر آب."],
+    مدرسه: ["place", "مدرسه جایی است که بچه‌ها درس می‌خوانند."],
+    توپ: ["sport", "توپ چیز گردی است که با آن بازی می‌کنی."],
+    خورشید: ["nature", "خورشید همان دایرهٔ روشن آسمان است."],
+    ماه: ["nature", "ماه شب‌ها توی آسمان دیده می‌شود."],
+    ماشین: ["object", "ماشین همان چیزی است که آدم‌ها با آن می‌روند بیرون."]
   };
-  return arts[kind] || arts.object;
-}
-
-function isHardWord(word) {
-  const langs = ["fa", "en"];
-  for (const lang of langs) {
-    for (const cat of Object.keys(window.WORD_BANK[lang])) {
-      if ((window.WORD_BANK[lang][cat].hard || []).some((w) => norm(w) === norm(word))) return true;
-    }
-  }
-  return false;
+  const cat = (known[key] && known[key][0]) || categoryOf(word) || "object";
+  const text = (known[key] && known[key][1]) || ({
+    food: "این یک خوردنی است. فکر کن کجا می‌خوری‌اش.",
+    animal: "این یک حیوان است. فکر کن چه شکلی است.",
+    place: "این یک جا است. فکر کن آنجا چه کار می‌کنند.",
+    job: "این یک کار است. فکر کن آن آدم چه کار می‌کند.",
+    object: "این یک وسیله است. فکر کن با آن چه کار می‌کنند.",
+    sport: "این یک بازی ورزشی است.",
+    nature: "این یک چیز در طبیعت است.",
+    tech: "این یک وسیلهٔ برقی است.",
+    clothes: "این یک لباس است.",
+    culture: "این یک چیز مربوط به داستان یا فیلم است."
+  })[cat] || "این کلمه را برای بقیه با یک مثال ساده بگو.";
+  return { svg: kidSvg(cat), text };
 }
 
 function kidSvg(cat) {
   const shapes = {
-    animal: `<svg width="150" height="150" viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><ellipse cx="60" cy="70" rx="28" ry="22" fill="#e2b56a"/><circle cx="42" cy="48" r="10" fill="#e2b56a"/><circle cx="78" cy="48" r="10" fill="#e2b56a"/><circle cx="50" cy="66" r="4" fill="#1a120c"/><circle cx="70" cy="66" r="4" fill="#1a120c"/><ellipse cx="60" cy="78" rx="6" ry="4" fill="#1a120c"/></svg>`,
+    animal: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><ellipse cx="60" cy="70" rx="28" ry="22" fill="#e2b56a"/><circle cx="42" cy="48" r="10" fill="#e2b56a"/><circle cx="78" cy="48" r="10" fill="#e2b56a"/><circle cx="50" cy="66" r="4" fill="#1a120c"/><circle cx="70" cy="66" r="4" fill="#1a120c"/><ellipse cx="60" cy="78" rx="6" ry="4" fill="#1a120c"/></svg>`,
     food: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><ellipse cx="60" cy="72" rx="34" ry="16" fill="#e2b56a"/><ellipse cx="60" cy="64" rx="34" ry="16" fill="#c8453a"/><circle cx="48" cy="60" r="4" fill="#f6efe4"/><circle cx="66" cy="58" r="4" fill="#f6efe4"/><circle cx="74" cy="68" r="3" fill="#f6efe4"/></svg>`,
     place: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><path d="M60 22l28 24H32z" fill="#e2b56a"/><rect x="36" y="46" width="48" height="40" fill="#f6efe4"/><rect x="52" y="62" width="16" height="24" fill="#1a120c"/></svg>`,
     job: `<svg viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="#3a2a1c"/><circle cx="60" cy="46" r="16" fill="#e2b56a"/><path d="M28 98c6-22 18-32 32-32s26 10 32 32" fill="#f6efe4"/></svg>`,
@@ -1495,16 +1325,6 @@ function beginDiscuss() {
   show("discuss");
   paintDiscuss();
   armTimer(ends);
-}
-
-function applyPendingGuess() {
-  if (!state.pendingSpyOut) return null;
-  const bad = state.players.find((p) => p.id === state.pendingSpyOut && p.alive);
-  state.pendingSpyOut = "";
-  if (!bad) return null;
-  bad.alive = false;
-  state.lastElim = { name: bad.name, role: "spy" };
-  return bad;
 }
 
 function endRoundNow() {
@@ -1544,222 +1364,50 @@ function paintDiscuss() {
   ).join("");
   const me = state.players.find((p) => p.id === state.meId);
   $("openGuess").style.display = me && me.role === "spy" && me.alive && !state.guessUsed ? "block" : "none";
-  if ($("toVote")) $("toVote").style.display = me && me.alive === false ? "none" : "block";
-  if (state.mode === "pass") $("openGuess").style.display = state.guessUsed ? "none" : "block";
+  if (state.mode === "pass") $("openGuess").style.display = "block";
   const alive = state.players.filter((p) => p.alive);
   const allIn = alive.length && alive.every((p) => (state.votes || {})[p.id]);
   const end = $("endRound");
   if (end) end.style.display = allIn && (state.mode === "pass" || state.isMaster) ? "block" : "none";
-  const faBtn = $("toFa");
-  const enBtn = $("toEn");
-  if (faBtn) faBtn.style.display = "none";
-  if (enBtn) enBtn.style.display = "none";
-}
-
-function voteTally() {
-  const votes = (net.room && net.room.votes) || state.votes || {};
-  const tally = {};
-  Object.values(votes).forEach((id) => { if (id) tally[id] = (tally[id] || 0) + 1; });
-  return tally;
 }
 
 function openVote() {
   clearInterval(state.timer);
+  state.selectedVote = "";
   show("vote");
-  const me = state.players.find((p) => p.id === state.meId);
-  if (state.mode === "online" && me && me.alive === false) {
-    const votes = (net.room && net.room.votes) || state.votes || {};
-    const alive = state.players.filter((p) => p.alive);
-    const tally = voteTally();
-    const votedCount = alive.filter((p) => votes[p.id]).length;
-    $("voteHint").textContent = state.ui === "fa" ? `حذف شدی. دیگر رأی نداری. ${votedCount} از ${alive.length} رأی دادند.` : "You are out. You cannot vote.";
-    $("voteList").innerHTML = alive.map((p) => `<div class="player"><span><b>${escapeHtml(p.name)}</b></span><span>${tally[p.id] || 0} ${state.ui === "fa" ? "رأی" : "votes"}</span></div>`).join("");
-    $("castVote").style.display = "none";
-    const change = $("changeVote");
-    if (change) change.style.display = "none";
-    const end = $("endRoundVote");
-    if (end) end.style.display = "none";
-    return;
-  }
-  const voterId = state.mode === "pass" ? state.passVoter : state.meId;
-  const votes = (state.mode === "online" && net.room && net.room.votes) || state.votes || {};
-  const mine = votes[voterId];
   const alive = state.players.filter((p) => p.alive);
-  const targets = alive.filter((p) => p.id !== voterId);
-  const tally = voteTally();
-  const votedCount = alive.filter((p) => votes[p.id]).length;
-  const host = state.isMaster || (typeof amStoredHost === "function" && amStoredHost(state.room));
-  const allIn = alive.length > 0 && alive.every((p) => votes[p.id]);
-
-  if (mine && state.mode !== "pass" && !state.changingVote) {
-    const chosen = alive.find((p) => p.id === mine);
-    $("voteHint").textContent = state.ui === "fa"
-      ? `رأی تو ثبت شد برای ${chosen ? chosen.name : ""}. منتظر بقیه. ${votedCount} از ${alive.length}`
-      : `Your vote is in. Waiting. ${votedCount}/${alive.length}`;
-    $("voteList").innerHTML = alive.map((p) => {
-      const n = tally[p.id] || 0;
-      const did = votes[p.id] ? (state.ui === "fa" ? "رأی داد" : "voted") : (state.ui === "fa" ? "منتظر" : "waiting");
-      return `<div class="player"><span><i class="dot"></i><b>${escapeHtml(p.name)}</b></span><span>${n} ${state.ui === "fa" ? "رأی" : "votes"} · ${did}</span></div>`;
-    }).join("");
-    $("castVote").style.display = "none";
-    let change = $("changeVote");
-    if (!change) {
-      change = document.createElement("button");
-      change.id = "changeVote";
-      change.className = "btn ghost";
-      change.type = "button";
-      $("castVote").parentElement.insertBefore(change, $("castVote").nextSibling);
-    }
-    change.style.display = "block";
-    change.textContent = state.ui === "fa" ? "تعویض رأی" : "Change vote";
-    change.onclick = () => { state.changingVote = true; openVote(); };
-  } else {
-    state.selectedVote = mine || "";
-    $("voteHint").textContent = state.mode === "pass"
-      ? t("giveTo") + " " + ((state.players.find((p) => p.id === voterId) || {}).name || "")
-      : (state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی. بعد از ثبت، تعداد رأی‌ها دیده می‌شود." : "You cannot vote for yourself.");
-    $("voteList").innerHTML = targets.map((p) =>
-      `<button class="list-btn ${state.selectedVote === p.id ? "on" : ""}" type="button" data-id="${p.id}">${escapeHtml(p.name)} · ${tally[p.id] || 0}</button>`
-    ).join("");
-    $("voteList").querySelectorAll("button").forEach((b) => {
-      b.onclick = () => {
-        state.selectedVote = b.dataset.id;
-        $("voteList").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
-        b.classList.add("on");
-      };
-    });
-    $("castVote").style.display = "block";
-    const change = $("changeVote");
-    if (change) change.style.display = "none";
-  }
-  const board = alive.map((p) => `<div class="player"><span><b>${escapeHtml(p.name)}</b></span><span>${tally[p.id] || 0} ${state.ui === "fa" ? "رأی" : "votes"}</span></div>`).join("");
-  let box = $("tallyBox");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "tallyBox";
-    box.className = "players";
-    box.style.marginTop = "10px";
-    $("voteList").insertAdjacentElement("afterend", box);
-  }
-  box.innerHTML = `<p class="hint">${state.ui === "fa" ? "تعداد رأی هر نفر" : "Votes"} · ${votedCount}/${alive.length}</p>` + board;
-  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  const top = ranked[0];
-  const tied = ranked[1] && ranked[0][1] === ranked[1][1];
-  const defense = (net.room && net.room.defense) || null;
-  let defendBtn = $("openDefense");
-  if (!defendBtn) {
-    defendBtn = document.createElement("button");
-    defendBtn.id = "openDefense";
-    defendBtn.className = "btn";
-    defendBtn.type = "button";
-    $("castVote").parentElement.appendChild(defendBtn);
-  }
-  defendBtn.style.display = "none";
-  let yesBtn = $("defYes");
-  let noBtn = $("defNo");
-  if (!yesBtn) {
-    yesBtn = document.createElement("button");
-    yesBtn.id = "defYes";
-    yesBtn.className = "btn";
-    yesBtn.type = "button";
-    noBtn = document.createElement("button");
-    noBtn.id = "defNo";
-    noBtn.className = "btn ghost";
-    noBtn.type = "button";
-    $("castVote").parentElement.appendChild(yesBtn);
-    $("castVote").parentElement.appendChild(noBtn);
-  }
-  yesBtn.style.display = "none";
-  noBtn.style.display = "none";
-  if (allIn && top && !tied && state.mode === "online") {
-    const accused = alive.find((p) => p.id === top[0]);
-    if (defense && defense.open && defense.id === top[0]) {
-      const dVotes = defense.votes || {};
-      const yes = Object.values(dVotes).filter((v) => v === "yes").length;
-      const no = Object.values(dVotes).filter((v) => v === "no").length;
-      $("voteHint").textContent = state.ui === "fa"
-        ? `${accused ? accused.name : ""} دفاع می‌کند. قبول ${yes} · رد ${no}`
-        : `${accused ? accused.name : ""} is defending.`;
-      if (me && me.alive && me.id !== defense.id && !dVotes[me.id]) {
-        yesBtn.style.display = "block";
-        noBtn.style.display = "block";
-        yesBtn.textContent = state.ui === "fa" ? "دفاع را قبول دارم" : "Accept defense";
-        noBtn.textContent = state.ui === "fa" ? "دفاع را رد می‌کنم" : "Reject";
-        yesBtn.onclick = () => sendDefense("yes");
-        noBtn.onclick = () => sendDefense("no");
-      }
-    } else if (accused && me && me.id === accused.id) {
-      defendBtn.style.display = "block";
-      defendBtn.textContent = state.ui === "fa" ? "دفاع می‌کنم و خودم را سفید می‌کنم" : "Defend myself";
-      defendBtn.onclick = startDefense;
-      $("voteHint").textContent = state.ui === "fa" ? `تو بیشترین رأی را داری (${top[1]}). می‌توانی دفاع کنی.` : "You have the most votes. You may defend.";
-    } else {
-      $("voteHint").textContent = state.ui === "fa"
-        ? `بیشترین رأی: ${accused ? accused.name : ""} با ${top[1]} رأی. منتظر دفاع یا پایان مستر.`
-        : `Most votes: ${accused ? accused.name : ""} (${top[1]}).`;
-    }
-  }
-  const end = $("endRoundVote");
-  if (end) end.style.display = allIn && (host || state.mode === "pass") ? "block" : "none";
-  if (allIn && host && !(defense && defense.open)) $("voteHint").textContent = state.ui === "fa" ? "همه رأی دادند. می‌توانی دور را تمام کنی، یا منتظر دفاع بمانی." : "Everyone voted. You can end the round.";
-}
-
-function startDefense() {
-  if (!net.room) return;
-  const tally = voteTally();
-  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  if (!ranked.length) return;
-  net.room.defense = { id: ranked[0][0], open: true, votes: {} };
-  publishRoom(net.room);
-  openVote();
-}
-
-function sendDefense(choice) {
-  if (!net.room || !net.room.defense) return;
-  if (!net.room.defense.votes) net.room.defense.votes = {};
-  net.room.defense.votes[state.meId] = choice;
-  const alive = net.room.players.filter((p) => p.alive && p.id !== net.room.defense.id);
-  const votes = net.room.defense.votes;
-  const done = alive.every((p) => votes[p.id]);
-  if (done) {
-    const yes = alive.filter((p) => votes[p.id] === "yes").length;
-    if (yes > alive.length / 2) {
-      net.room.votes = {};
-      net.room.defense = null;
-      net.room.phase = "vote";
-      state.changingVote = false;
-      toast(state.ui === "fa" ? "دفاع قبول شد. رأی‌ها پاک شد." : "Defense accepted. Votes cleared.");
-    } else {
-      net.room.defense.open = false;
-      toast(state.ui === "fa" ? "دفاع رد شد." : "Defense rejected.");
-    }
-  }
-  publishRoom(net.room);
-  openVote();
+  $("voteHint").textContent = state.mode === "pass" ? t("giveTo") : "";
+  $("voteList").innerHTML = alive.map((p) =>
+    `<button class="list-btn" type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`
+  ).join("");
+  $("voteList").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => {
+      state.selectedVote = b.dataset.id;
+      $("voteList").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+  });
+  if (state.mode === "online" && state.isMaster) broadcast({ type: "phase", phase: "vote", players: alivePublic() });
 }
 
 function castVote() {
-  const meNow = state.players.find((p) => p.id === state.meId);
-  if (state.mode === "online" && meNow && meNow.alive === false) return toast(state.ui === "fa" ? "حذف شدی، رأی نداری" : "You are out");
   if (!state.selectedVote) return toast(state.ui === "fa" ? "اول یک اسم را انتخاب کن" : "Pick a name first");
-  const voterId = state.mode === "pass" ? state.passVoter : state.meId;
-  if (state.selectedVote === voterId) return toast(state.ui === "fa" ? "به خودت نمی‌توانی رأی بدهی" : "You cannot vote for yourself");
   if (state.mode === "pass") {
     state.votes[state.passVoter] = state.selectedVote;
     passVoteNext();
     return;
   }
   if (!net.room) return;
-  if (!net.room.votes) net.room.votes = {};
   net.room.votes[state.meId] = state.selectedVote;
   state.votes = net.room.votes;
-  state.changingVote = false;
   const alive = net.room.players.filter((p) => p.alive);
   const allIn = alive.every((p) => net.room.votes[p.id]);
   net.room.allVoted = allIn;
   publishRoom(net.room);
   toast(state.ui === "fa" ? "رأی ثبت شد" : "Vote saved");
-  openVote();
+  const end = $("endRoundVote");
+  if (end) end.style.display = allIn && state.isMaster ? "block" : "none";
+  if (allIn) $("voteHint").textContent = state.ui === "fa" ? "رأی‌ها کامل شد. مستر می‌تواند دور را تمام کند." : "All votes are in. The host can end the round.";
 }
 
 function passVoteNext() {
@@ -1767,7 +1415,9 @@ function passVoteNext() {
   const pending = alive.find((p) => !state.votes[p.id]);
   if (!pending) return finishVotes();
   state.passVoter = pending.id;
-  openVote();
+  $("voteHint").textContent = t("giveTo") + " " + pending.name;
+  state.selectedVote = "";
+  $("voteList").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
 }
 
 function maybeFinishVotes() {
@@ -1776,17 +1426,6 @@ function maybeFinishVotes() {
 }
 
 function finishVotes() {
-  if (state.pendingSpyOut) {
-    const bad = state.players.find((p) => p.id === state.pendingSpyOut && p.alive);
-    state.pendingSpyOut = "";
-    if (bad) {
-      bad.alive = false;
-      state.lastElim = { name: bad.name, role: "spy" };
-      const win = checkWin();
-      showResult({ tie: false, elim: state.lastElim, win, reason: "lateGuess" });
-      return;
-    }
-  }
   const tally = {};
   Object.values(state.votes).forEach((id) => { tally[id] = (tally[id] || 0) + 1; });
   const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
@@ -1844,25 +1483,17 @@ function showResult(info) {
   let html = "";
   if (info.tie) html += `<h2>${t("tie")}</h2>`;
   else if (info.reason === "guess") html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${t("spiesWin")}</p>`;
-  else if (info.reason === "lateGuess") html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${t("spy")} · ${t("out")}</p><p>${state.ui === "fa" ? "حدس کلمه‌اش غلط بود." : "The word guess was wrong."}</p>`;
-  else html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${roleName(info.elim.role)} · ${t("out")}</p>`;
-  const tally = voteTally();
-  const votes = (net.room && net.room.votes) || state.votes || {};
-  html += `<div class="players" style="margin-top:12px">${state.players.filter(p => p.alive || tally[p.id]).map(p => `<div class="player"><span><b>${escapeHtml(p.name)}</b></span><span>${tally[p.id] || 0} ${state.ui === "fa" ? "رأی" : "votes"}</span></div>`).join("")}</div>`;
+  else html += `<h2>${escapeHtml(info.elim.name)}</h2><p class="stamp">${roleName(info.elim.role)} · ${t("out")}</p>` + (info.win === "spy" && info.elim.role === "spy" ? `<p>${state.ui === "fa" ? "این جاسوس حذف شد، ولی جاسوس‌های باقی‌مانده بیشتر بودند." : "This spy was removed, but the remaining spies still had the numbers."}</p>` : "");
   if (info.win) {
     html += `<h3 style="margin-top:18px">${info.win === "citizen" ? t("citizensWin") : t("spiesWin")}</h3>`;
-    html += `<p>${t("wordWas")}: <b>${escapeHtml(state.word || state.wordShown)}</b>${state.wordFa ? " · " + escapeHtml(state.wordFa) : ""}</p>`;
-    html += `<div class="stack" style="margin-top:12px">${state.isMaster ? `<p id="nextLangLabel" class="hint">${(net.room && net.room.nextLang) === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی"}</p><div class="row"><button class="btn ghost" id="pickFa" type="button">دور بعد فارسی</button><button class="btn ghost" id="pickEn" type="button">دور بعد انگلیسی</button></div>` : ""}<button class="btn" id="nextRound">${t("nextRound")}</button><button class="btn ghost" id="toHome">${t("home")}</button></div>`;
+    html += `<p>${t("wordWas")}: <b>${escapeHtml(state.word || state.wordShown)}</b></p>`;
+    html += `<div class="stack" style="margin-top:12px"><button class="btn" id="nextRound">${t("nextRound")}</button><button class="btn ghost" id="toHome">${t("home")}</button></div>`;
   } else {
     html += `<div class="stack" style="margin-top:12px"><button class="btn" id="continueTalk">${t("beginTalk")}</button></div>`;
   }
   $("resultBox").innerHTML = html;
   const nr = $("nextRound");
   if (nr) nr.onclick = () => newRound();
-  const pickFa = $("pickFa");
-  const pickEn = $("pickEn");
-  if (pickFa) pickFa.onclick = () => switchWord("fa");
-  if (pickEn) pickEn.onclick = () => switchWord("en");
   const th = $("toHome");
   if (th) th.onclick = () => location.href = location.pathname;
   const ct = $("continueTalk");
@@ -1882,11 +1513,8 @@ function showResult(info) {
 
 function newRound() {
   state.round += 1;
-  state.guessUsed = false;
-  state.guessLog = [];
-  state.pendingSpyOut = "";
   if (state.mode === "pass") {
-    deal(state.players.map((p) => ({ id: p.id, name: p.name, age: p.age, kid: p.kid })));
+    deal(state.players.map((p) => ({ id: p.id, name: p.name })));
     state.revealAt = 0;
     showPassCover();
   } else if (net.room) {
@@ -1898,72 +1526,51 @@ function newRound() {
 
 function norm(s) {
   return String(s || "").trim().toLowerCase()
-    .replace(/[آأإٱ]/g, "ا")
     .replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/ة/g, "ه")
-    .replace(/‌/g, "")
     .replace(/[^\p{L}\p{N}]+/gu, "");
-}
-
-function sameWord(guess, answer) {
-  const a = norm(guess);
-  const b = norm(answer);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const fold = (s) => s.replace(/[صث]/g, "س").replace(/ط/g, "ت").replace(/[ذضظ]/g, "ز").replace(/ح/g, "ه").replace(/غ/g, "ق");
-  if (fold(a) === fold(b)) return true;
-  const limit = Math.max(a.length, b.length) >= 8 ? 2 : 1;
-  return editDistance(a, b) <= limit;
-}
-
-function editDistance(a, b) {
-  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let prev = i - 1;
-    row[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const cur = row[j];
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-      prev = cur;
-    }
-  }
-  return row[b.length];
 }
 
 function submitGuess() {
   const raw = $("guessInput").value;
   const guess = norm(raw);
   const answer = norm(state.word || state.wordShown);
-  const who = state.mode === "pass" ? state.guessWho : state.meId;
+  const who = state.mode === "pass" ? ($("guessWho") && $("guessWho").value) : state.meId;
   $("guessModal").classList.remove("on");
-  if (!guess || !who) return toast(state.ui === "fa" ? "اول اسم خودت را انتخاب کن" : "Pick your name first");
-  if (state.guessUsed) return toast(state.ui === "fa" ? "این دور فقط یک حدس دارد" : "Only one guess this round");
-  const guesser = state.players.find((p) => p.id === who) || (net.room && net.room.players.find((p) => p.id === who));
+  if (!guess || !who) return;
   state.guessUsed = true;
-  state.guessLog = [{ name: guesser ? guesser.name : "", word: raw, spy: !!(guesser && guesser.role === "spy") }];
-  const correct = sameWord(guess, answer);
-  if (guesser && guesser.role === "spy" && correct) {
-    if (state.mode === "online" && net.room) {
+  if (state.mode === "online" && net.room) {
+    const p = net.room.players.find((x) => x.id === who);
+    if (guess === answer) {
       net.room.scores.spy += 1;
       net.room.win = "spy";
       net.room.reason = "guess";
       net.room.phase = "result";
-      net.room.lastElim = { name: guesser.name, role: "spy" };
+      net.room.lastElim = { name: p ? p.name : t("spy"), role: "spy" };
       publishRoom(net.room);
       return;
     }
-    resolveGuess(who, true);
+    if (p) p.alive = false;
+    net.room.guessUsed = true;
+    net.room.lastElim = { name: p.name, role: "spy" };
+    const alive = net.room.players.filter((x) => x.alive);
+    const spies = alive.filter((x) => x.role === "spy").length;
+    const citizens = alive.filter((x) => x.role === "citizen").length;
+    net.room.win = spies === 0 ? "citizen" : spies >= citizens ? "spy" : "";
+    if (net.room.win === "citizen") net.room.scores.citizen += 1;
+    if (net.room.win === "spy") net.room.scores.spy += 1;
+    net.room.phase = net.room.win ? "result" : "discuss";
+    if (!net.room.win) net.room.discussEndsAt = Date.now() + (net.room.settings.minutes || 6) * 60000;
+    publishRoom(net.room);
     return;
   }
-  toast(state.ui === "fa" ? "حدس ثبت شد. این دور دیگر حدس ندارد." : "Guess saved. No more guesses this round.");
-  if (guesser && guesser.role === "spy") state.pendingSpyOut = guesser.id;
-  return;
+  resolveGuess(who, guess === answer);
 }
 
 function resolveGuess(id, ok) {
   const p = state.players.find((x) => x.id === id);
   if (ok) {
     state.scores.spy += 1;
-    showResult({ tie: false, elim: { name: p ? p.name : t("spy"), role: "spy" }, win: "spy", reason: "guess" });
+    showResult({ tie: false, elim: { name: p ? p.name : t("spy"), role: "spy" }, win: "spy" });
     if (state.mode === "online" && state.isMaster) {
       broadcast({ type: "result", tie: false, elim: { name: p.name, role: "spy" }, win: "spy", word: state.word, scores: state.scores, players: state.players });
     }
@@ -1979,18 +1586,12 @@ function nameRows() {
   $("nameList").innerHTML = "";
   state.players.forEach((p, i) => {
     const wrap = document.createElement("div");
-    wrap.className = "card";
-    wrap.innerHTML = `<div class="row"><input type="text" maxlength="18" value="${escapeHtml(p.name)}" data-i="${i}" placeholder="${state.ui === "fa" ? "اسم" : "Name"}" /><button class="btn small ghost" type="button" data-x="${i}">×</button></div><label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px"><input type="checkbox" data-kid="${i}" ${p.kid ? "checked" : ""} style="width:auto" /> ${state.ui === "fa" ? "شکل و توضیح" : "Picture and hint"}</label>`;
+    wrap.className = "row";
+    wrap.innerHTML = `<input type="text" maxlength="18" value="${escapeHtml(p.name)}" data-i="${i}" /><button class="btn small ghost" type="button" data-x="${i}">×</button>`;
     $("nameList").appendChild(wrap);
   });
-  $("nameList").querySelectorAll("input[data-i]").forEach((inp) => {
+  $("nameList").querySelectorAll("input").forEach((inp) => {
     inp.oninput = () => { state.players[inp.dataset.i].name = inp.value; paintPassHint(); };
-  });
-  $("nameList").querySelectorAll("input[data-age]").forEach((inp) => {
-    inp.oninput = () => { state.players[inp.dataset.age].age = Number(inp.value) || 0; };
-  });
-  $("nameList").querySelectorAll("input[data-kid]").forEach((inp) => {
-    inp.onchange = () => { state.players[inp.dataset.kid].kid = inp.checked; };
   });
   $("nameList").querySelectorAll("[data-x]").forEach((b) => {
     b.onclick = () => {
@@ -2028,7 +1629,7 @@ function showPassCard(p) {
   const title = p.role === "spy" ? t("youSpy") : p.role === "blank" ? t("youBlank") : t("youCitizen");
   const help = p.role === "spy" ? t("spyHelp") : p.role === "blank" ? t("blankHelp") : t("citizenHelp");
   const word = p.role === "citizen" ? "" : (p.role === "spy" ? "؟" : "—");
-  const body = p.role === "citizen" ? kidBlock(state.word, !!(p.kid || isKid(p.age))) + meaningLine() : `<div class="word">${escapeHtml(word)}</div>`;
+  const body = p.role === "citizen" ? kidBlock(state.word, isKid(p.age)) : `<div class="word">${escapeHtml(word)}</div>`;
   $("revealBox").innerHTML = `
     <div class="role-card ${klass}">
       <div class="role-tag">${escapeHtml(p.name)}</div>
@@ -2042,8 +1643,6 @@ function showPassCard(p) {
       $("goTalk").onclick = () => beginDiscuss();
     } else showPassCover();
   };
-  fillKidPhoto();
-  fillMeaning();
 }
 
 function hostRoom() { return window.hostRoomShared(); }
@@ -2097,19 +1696,13 @@ function bind() {
     nameRows();
   };
   $("passBack").onclick = () => show("setup");
-  $("startPass").onclick = async () => {
-    state.players = state.players.filter((p) => p.name.trim()).map((p, i) => ({
-      id: "p" + i,
-      name: p.name.trim(),
-      age: Number(p.age) || 0,
-      kid: !!(p.kid || (Number(p.age) > 0 && Number(p.age) < 10))
-    }));
+  $("startPass").onclick = () => {
+    state.players = state.players.filter((p) => p.name.trim()).map((p, i) => ({ id: "p" + i, name: p.name.trim() }));
     if (state.players.length < 3) return toast(t("need3"));
     state.mode = "pass";
     state.meId = state.players[0].id;
     deal(state.players);
     state.revealAt = 0;
-    await enrichWord();
     showPassCover();
   };
   $("copyLink").onclick = async () => {
@@ -2125,15 +1718,6 @@ function bind() {
   $("startOnline").onclick = startOnline;
   $("leaveRoom").onclick = () => location.href = location.pathname;
   $("toVote").onclick = () => {
-    const dropped = applyPendingGuess();
-    if (dropped) {
-      const win = checkWin();
-      if (win) {
-        showResult({ tie: false, elim: state.lastElim, win, reason: "lateGuess" });
-        return;
-      }
-      toast(state.ui === "fa" ? dropped.name + " به‌خاطر حدس غلط در رأی نیست." : dropped.name + " is out for a wrong guess.");
-    }
     state.votes = {};
     if (state.mode === "pass") {
       openVote();
@@ -2145,42 +1729,23 @@ function bind() {
     net.room.votes = {};
     publishRoom(net.room);
   };
-  if ($("toFa")) $("toFa").onclick = () => switchWord("fa");
-  if ($("toEn")) $("toEn").onclick = () => switchWord("en");
   $("castVote").onclick = castVote;
   $("voteBack").onclick = () => returnToTalk();
   $("endRound").onclick = endRoundNow;
   $("endRoundVote").onclick = endRoundNow;
   $("openGuess").onclick = () => {
-    if (state.guessUsed) return toast(state.ui === "fa" ? "این دور فقط یک حدس دارد" : "Only one guess this round");
-    const box = $("guessWhoBox");
-    box.innerHTML = "";
-    state.guessWho = "";
-    if (state.mode === "pass") {
-      const alive = state.players.filter((p) => p.alive);
-      $("guessLead").textContent = state.ui === "fa"
-        ? "اول اسم خودت را بزن، بعد کلمه را بنویس. این دور فقط یک حدس دارد."
-        : "Tap your own name, then type the word. Only a spy’s guess counts.";
-      alive.forEach((p) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "list-btn";
-        b.textContent = p.name;
-        b.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          state.guessWho = p.id;
-          box.querySelectorAll("button").forEach((x) => { x.classList.remove("on"); x.style.background = ""; x.style.color = ""; });
-          b.classList.add("on");
-          b.style.background = "#e2b56a";
-          b.style.color = "#1a120c";
-          $("guessLead").textContent = (state.ui === "fa" ? "انتخاب شد: " : "Selected: ") + p.name;
-        };
-        box.appendChild(b);
-      });
-    } else {
-      $("guessLead").textContent = t("guessLead");
+    const box = $("guessModal").querySelector(".sheet");
+    let who = $("guessWho");
+    if (!who) {
+      who = document.createElement("select");
+      who.id = "guessWho";
+      who.style.margin = "8px 0";
+      $("guessInput").before(who);
     }
+    if (state.mode === "pass") {
+      who.style.display = "block";
+      who.innerHTML = state.players.filter((p) => p.alive).map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+    } else who.style.display = "none";
     $("guessInput").value = "";
     $("guessModal").classList.add("on");
   };
@@ -2196,7 +1761,6 @@ if (preset) {
   show("setup");
   $("masterName").focus();
 }
-
 
 </script>
 </body>
