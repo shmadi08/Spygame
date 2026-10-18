@@ -172,7 +172,9 @@
     width: 100%; text-align: start; background: #16120f; color: var(--ink);
     border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-top: 8px; font-size: 15px;
   }
-  .list-btn.on { border-color: var(--gold); color: var(--gold); }
+  .list-btn.on { border-color: var(--gold); color: #1b140c; background: var(--gold); font-weight: 700; }
+  .list-btn.on::before { content: "✓ "; }
+  .btn.picked { border-color: var(--gold); background: var(--gold); color: #1b140c; }
   .stamp {
     display: inline-block; border: 3px solid currentColor; padding: 6px 12px;
     transform: rotate(-6deg); letter-spacing: .14em; font-weight: 800;
@@ -1400,6 +1402,10 @@ function switchWord(lang) {
   toast(lang === "en" ? "Next round: English" : "دور بعد فارسی است");
   const box = $("nextLangLabel");
   if (box) box.textContent = lang === "en" ? "Next round: English" : "دور بعد: فارسی";
+  const faBtn = $("pickFa");
+  const enBtn = $("pickEn");
+  if (faBtn) faBtn.classList.toggle("picked", lang === "fa");
+  if (enBtn) enBtn.classList.toggle("picked", lang === "en");
 }
   function isKid(age) {
   const n = Number(age && age.age != null ? age.age : age);
@@ -1857,7 +1863,7 @@ function showResult(info) {
   if (info.win) {
     html += `<h3 style="margin-top:18px">${info.win === "citizen" ? t("citizensWin") : t("spiesWin")}</h3>`;
     html += `<p>${t("wordWas")}: <b>${escapeHtml(state.word || state.wordShown)}</b>${state.wordFa ? " · " + escapeHtml(state.wordFa) : ""}</p>`;
-    html += `<div class="stack" style="margin-top:12px">${state.isMaster ? `<p id="nextLangLabel" class="hint">${(net.room && net.room.nextLang) === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی"}</p><div class="row"><button class="btn ghost" id="pickFa" type="button">دور بعد فارسی</button><button class="btn ghost" id="pickEn" type="button">دور بعد انگلیسی</button></div>` : ""}<button class="btn" id="nextRound">${t("nextRound")}</button><button class="btn ghost" id="toHome">${t("home")}</button></div>`;
+    html += `<div class="stack" style="margin-top:12px">${state.isMaster ? `<p id="nextLangLabel" class="hint">${(net.room && net.room.nextLang) === "en" ? "دور بعد: انگلیسی" : "دور بعد: فارسی"}</p><div class="row"><button class="btn ghost ${(net.room && net.room.nextLang) !== "en" ? "picked" : ""}" id="pickFa" type="button">دور بعد فارسی</button><button class="btn ghost ${(net.room && net.room.nextLang) === "en" ? "picked" : ""}" id="pickEn" type="button">دور بعد انگلیسی</button></div>` : ""}<button class="btn" id="nextRound">${t("nextRound")}</button><button class="btn ghost" id="toHome">${t("home")}</button></div>`;
   } else {
     html += `<div class="stack" style="margin-top:12px"><button class="btn" id="continueTalk">${t("beginTalk")}</button></div>`;
   }
